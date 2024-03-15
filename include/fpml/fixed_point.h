@@ -41,20 +41,20 @@
 #ifndef __fixed_point_h__
 #define __fixed_point_h__
 
-#include <boost/assert.hpp>
-#include <boost/static_assert.hpp>
-#include <boost/operators.hpp>
-#include <boost/concept_check.hpp>
+// TODO: Remove it.
+//#include <boost/assert.hpp>
+//#include <boost/static_assert.hpp>
+//#include <boost/operators.hpp>
+//#include <boost/concept_check.hpp>
 #include <limits>
 #ifndef _USE_MATH_DEFINES
 	#define _USE_MATH_DEFINES
 	#define __FPML_DEFINED_USE_MATH_DEFINES__
 #endif
-#include <math.h>
-#include <errno.h>
+#include <cmath>
+#include <cerrno>
 
 namespace fpml {
-
 
 /******************************************************************************/
 /*                                                                            */
@@ -120,21 +120,19 @@ template<
 //! >>=  ==>  >> (right_shiftable),
 //! <<=  ==>  << (left_shiftable).
 class fixed_point
-	: boost::ordered_field_operators<fpml::fixed_point<B, I, F>
-	, boost::unit_steppable<fpml::fixed_point<B, I, F>
-	, boost::shiftable<fpml::fixed_point<B, I, F>, size_t
-	> > >
 {
 	// Only integer types qualify for base type. If this line triggers an error,
 	// the base type is not an integer type. Note: char does not qualify as an
 	// integer because of its uncertainty in definition. Use signed char or
 	// unsigned char to be explicit.
-	BOOST_CONCEPT_ASSERT((boost::Integer<B>));
+    // TODO: Need assert.
+	//BOOST_CONCEPT_ASSERT((boost::Integer<B>));
 
 	// Make sure that the bit counts are ok. If this line triggers an error, the
 	// sum of the bit counts for the fractional and integer parts do not match 
 	// the bit count provided by the base type. The sign bit does not count.
-	BOOST_STATIC_ASSERT(I + F == std::numeric_limits<B>::digits);
+    // TODO: Need assert.
+	//BOOST_STATIC_ASSERT(I + F == std::numeric_limits<B>::digits);
 
 	/// Grant the fixed_point template access to private members. Types with
 	/// different template parameters are different types and without this
@@ -227,7 +225,8 @@ public:
 		T value)
 		: value_((B)value << F)
 	{ 
-		BOOST_CONCEPT_ASSERT((boost::Integer<T>));
+        // TODO: Need assert.
+		//BOOST_CONCEPT_ASSERT((boost::Integer<T>));
 	}
 
 	/// Converting constructor.
@@ -695,6 +694,7 @@ public:
 	//! /return The value converted to a float.
 	operator float() const
 	{
+        // TODO: Needs improvement: composite integer cannot be assigned to float.
 		return (float)value_ / power2<F>::value;	
 	}
 
@@ -703,6 +703,7 @@ public:
 	//! /return The value converted to a double.
 	operator double() const
 	{
+        // TODO: Needs improvement: composite integer cannot be assigned to double.
 		return (double)value_ / power2<F>::value;	
 	}
 
@@ -711,6 +712,7 @@ public:
 	//! /return The value converted to a long double.
 	operator long double() const
 	{
+        // TODO: Needs improvement: composite integer cannot be assigned to long double.
 		return (long double)value_ / power2<F>::value;	
 	}
 
