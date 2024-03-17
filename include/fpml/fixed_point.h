@@ -41,18 +41,17 @@
 #ifndef __fixed_point_h__
 #define __fixed_point_h__
 
-// TODO: Remove it.
-//#include <boost/assert.hpp>
-//#include <boost/static_assert.hpp>
-//#include <boost/operators.hpp>
-//#include <boost/concept_check.hpp>
 #include <limits>
 #ifndef _USE_MATH_DEFINES
 	#define _USE_MATH_DEFINES
 	#define __FPML_DEFINED_USE_MATH_DEFINES__
 #endif
 #include <cmath>
+#include <cstdint>
 #include <cerrno>
+#include <type_traits>
+#include <utility>
+#include <ex_type_traits/op_traits.h>
 
 namespace fpml {
 
@@ -62,6 +61,77 @@ namespace fpml {
 /*                                                                            */
 /******************************************************************************/
 
+/// Multiplication and division of fixed_point numbers need type 
+/// promotion. This is default integral promoter for standard integral
+/// types.
+//!
+//! When two 8 bit numbers are multiplied, a 16 bit result is produced.
+//! When two 16 bit numbers are multiplied, a 32 bit result is produced.
+//! When two 32 bit numbers are multiplied, a 64 bit result is produced.
+//! Since the fixed_point class internally relies on integer 
+//! multiplication, we need type promotion. After the multiplication we
+//! need to adjust the position of the decimal point by shifting the
+//! temporary result to the right an appropriate number of bits. 
+//! However, if the temporary multiplication result is not kept in a big
+//! enough variable, overflow errors will occur and lead to wrong 
+//! results. A similar promotion needs to be done to the divisor in the
+//! case of division, but here the divisor needs to be shifted to the
+//! left an appropriate number of bits.
+template <typename T>
+class default_integral_promoter
+{
+private:
+
+    struct Error_promote_type_not_specialized_for_this_type
+    { };
+
+    template<
+        /// Pick up unspecialized types.
+        typename T,
+        /// Make gcc happy.
+        typename U=void>
+    struct promote_type
+	{
+		#ifdef _MSC_VER
+		typedef Error_promote_type_not_specialized_for_this_type type;
+		#endif // #ifdef _MSC_VER
+	};
+
+    template<typename U> struct promote_type<int8_t, U> { using type = int16_t; }
+    template<typename U> struct promote_type<uint8_t, U> { using type = uint16_t; }
+    template<typename U> struct promote_type<int16_t, U> { using type = int32_t; }
+    template<typename U> struct promote_type<uint16_t, U> { using type = uint32_t; }
+    template<typename U> struct promote_type<int32_t, U> { using type = int64_t; }
+    template<typename U> struct promote_type<uint32_t, U> { using type = uint64_t; }
+
+public:
+    using type = promote_type<T>::type;
+};
+
+// - swapable
+// - convert to char, signad char, unsigned char, short,
+//   unsigned short, int, unsigned int, long, unsigned long,
+//   long long, unsigned long long, bool, float, double,
+//   long double
+// - is_b_bit_conjunctionable_v<B, B, ???> (for ceil).
+// - is_b_modulative_v. (for fmod)
+template <typename B, typename TPromotion>
+inline constexpr bool is_valid_base_type_v =
+    std::is_copy_constructible_v<B> &&
+    exttr::op::is_a_rshiftable_v<B, size_t> &&
+    exttr::op::is_a_lshiftable_v<B, size_t> &&
+    exttr::op::is_b_rshiftable_v<TPromotion, size_t> &&
+    exttr::op::is_b_lshiftable_v<TPromotion, size_t> &&
+    exttr::op::is_comparable_v<B, B> &&
+    exttr::op::is_comparable_v<B, int> &&
+    exttr::op::is_negativable_v<B, B> &&
+    exttr::op::is_a_summative_v<B, B> &&
+    exttr::op::is_a_subtractive_v<B, B> &&
+    exttr::op::is_b_multiplicative_v<TPromotion, TPromotion, B> &&
+    exttr::op::is_b_dividable_v<TPromotion, TPromotion, B>
+    ;
+
+// TODO: Add trait for get numeric_limits from B.
 template<
 	/// The base type. Must be an integer type. 
 	//!
@@ -70,9 +140,11 @@ template<
 	//! unsigned.
 	typename B,
 	/// The integer part bit count.
-	unsigned char I,
+	uint8_t I,
 	/// The fractional part bit count.
-	unsigned char F = std::numeric_limits<B>::digits - I>
+	uint8_t F = sizeof (B) * CHAR_BIT - I> // //std::numeric_limits<B>::digits - I
+    /// Integral type promoter for multiplication and division.
+    typename TIntegralPromoter = default_integral_promoter<B>
 /// A fixed point type.
 //!
 //! This type is designed to be a plug-in type to replace the floating point
@@ -125,14 +197,12 @@ class fixed_point
 	// the base type is not an integer type. Note: char does not qualify as an
 	// integer because of its uncertainty in definition. Use signed char or
 	// unsigned char to be explicit.
-    // TODO: Need assert.
-	//BOOST_CONCEPT_ASSERT((boost::Integer<B>));
+    static_assert(is_valid_base_type_v<B, TIntegralPromoter::type>, "Invalid base type.");
 
 	// Make sure that the bit counts are ok. If this line triggers an error, the
 	// sum of the bit counts for the fractional and integer parts do not match 
 	// the bit count provided by the base type. The sign bit does not count.
-    // TODO: Need assert.
-	//BOOST_STATIC_ASSERT(I + F == std::numeric_limits<B>::digits);
+    static_assert(I + F == sizeof (B) * CHAR_BIT);
 
 	/// Grant the fixed_point template access to private members. Types with
 	/// different template parameters are different types and without this
@@ -198,7 +268,10 @@ class fixed_point
 
 public:
 	/// The base type of this fixed_point class.
-	typedef B base_type;
+	using base_type = B;
+
+    /// Integral type promoter for multiplication and division.
+    using integral_promoter = TIntegralPromoter;
 
 	/// The integer part bit count.
 	static const unsigned char integer_bit_count = I; 
@@ -281,9 +354,9 @@ public:
 
 	template<
 		/// The other integer part bit count.
-		unsigned char I2,
+		uint8_t I2,
 		/// The other fractional part bit count.
-		unsigned char F2>
+		uint8_t F2>
 	/// Converting copy constructor.
 	fixed_point(
 		/// The right hand side.
@@ -330,11 +403,7 @@ public:
 	}
 
 	/// Less than operator.
-	//!
-	//! Through the use of boost::less_than_comparable operator >, operator <= 
-	//! and operator >= are also defined and implemented by calling this 
-	//! operator.
-	//!
+    //!
 	//! /return true if less than, false otherwise.
 	bool operator <(
 		/// Right hand side.
@@ -345,10 +414,7 @@ public:
 	}
 
 	/// Equality operator.
-	//!
-	//! Through the use of boost::equality_comparable operator != is also
-	//! defined and implemented by calling this operator.
-	//!
+    //!
 	//! /return true if equal, false otherwise.
 	bool operator ==(
 		/// Right hand side.
@@ -357,6 +423,16 @@ public:
 		return 
 			value_ == rhs.value_; 
 	}
+    /// Other comparison operators.
+    #undef FPML_COMP_OP
+    #define FPML_COMP_OP(OP) bool operator##OP (fpml::fixed_point<B, I, F> const& rhs) const { return std::rel_ops::operator##OP (*this, rhs); }
+
+    FPML_COMP_OP(!=)
+    FPML_COMP_OP(<=)
+    FPML_COMP_OP(>)
+    FPML_COMP_OP(>=)
+
+    #undef FPML_COMP_OP
 
 	/// Negation operator.
 	//!
@@ -384,10 +460,6 @@ public:
 
 	/// Increment.
 	//!
-	//! Through the use of boost::unit_steppable operator ++(int) - 
-	//! postincrement - is also defined and implemented by calling this 
-	//! operator.
-	//!
 	//! /return A reference to this object.
 	fpml::fixed_point<B, I, F> & operator ++()
 	{
@@ -395,11 +467,12 @@ public:
 		return *this;
 	}
 
+    fpml::fixed_point<B, I, F> & operator ++(int)
+	{
+		// TODO: Post increment.
+	}
+
 	/// Decrement.
-	//!
-	//! Through the use of boost::unit_steppable operator --(int) - 
-	//! postdecrement - is also defined and implemented by calling this 
-	//! operator.
 	//!
 	//! /return A reference to this object.
 	fpml::fixed_point<B, I, F> & operator --()
@@ -408,10 +481,12 @@ public:
 		return *this;
 	}
 
+    fpml::fixed_point<B, I, F> & operator --(int)
+	{
+		// TODO: Post increment.
+	}
+
 	/// Addition.
-	//!
-	//! Through the use of boost::additive operator+ is also defined and
-	//! implemented by calling this operator.
 	//!
 	//! /return A reference to this object.
 	fpml::fixed_point<B, I, F> & operator +=(
@@ -422,10 +497,14 @@ public:
 		return *this;
 	}
 
+    fpml::fixed_point<B, I, F> operator +(
+        /// Summand for addition.
+        fpml::fixed_point<B, I, F> const& summand)
+    {
+        // TODO: Summ.
+    }
+
 	/// Subtraction.
-	//!
-	//! Through the use of boost::additive operator- is also defined and
-	//! implemented by calling this operator.
 	//!
 	//! /return A reference to this object.
 	fpml::fixed_point<B, I, F> & operator -=(
@@ -436,139 +515,52 @@ public:
 		return *this;
 	}
 
-	private:
-		struct Error_promote_type_not_specialized_for_this_type
-		{ };
-
-		template<
-			/// Pick up unspecialized types.
-			typename T, 
-			/// Make gcc happy.
-			typename U=void>
-		/// Multiplication and division of fixed_point numbers need type 
-		/// promotion.
-		//!
-		//! When two 8 bit numbers are multiplied, a 16 bit result is produced.
-		//! When two 16 bit numbers are multiplied, a 32 bit result is produced.
-		//! When two 32 bit numbers are multiplied, a 64 bit result is produced.
-		//! Since the fixed_point class internally relies on integer 
-		//! multiplication, we need type promotion. After the multiplication we
-		//! need to adjust the position of the decimal point by shifting the
-		//! temporary result to the right an appropriate number of bits. 
-		//! However, if the temporary multiplication result is not kept in a big
-		//! enough variable, overflow errors will occur and lead to wrong 
-		//! results. A similar promotion needs to be done to the divisor in the
-		//! case of division, but here the divisor needs to be shifted to the
-		//! left an appropriate number of bits.
-		//!
-		//! Unfortunately the integral_promotion class of the boost type_traits
-		//! library could not be used, since it does not provide a promotion
-		//! from int/unsigned int (32 bit) to long long/unsigned long long 
-		//! (64 bit). However, this promotion is often needed, because it is 
-		//! quite common to use a 32 bit base type for the fixed_point type.
-		//!
-		//! Therefore, the Fixed Point Math Library defines its own promotions 
-		//! here in a set of private classes.
-		struct promote_type
-		{
-			#ifdef _MSC_VER
-			typedef Error_promote_type_not_specialized_for_this_type type;
-			#endif // #ifdef _MSC_VER
-		};
-
-		template<
-			/// Make gcc happy.
-			typename U>
-		/// Promote signed char to signed short.
-		struct promote_type<signed char, U>
-		{
-			typedef signed short type;
-		};
-
-		template<
-			/// Make gcc happy.
-			typename U>
-		/// Promote unsigned char to unsigned short.
-		struct promote_type<unsigned char, U>
-		{
-			typedef unsigned short type;
-		};
-
-		template<
-			/// Make gcc happy.
-			typename U>
-		/// Promote signed short to signed int.
-		struct promote_type<signed short, U>
-		{
-			typedef signed int type;
-		};
-
-		template<
-			/// Make gcc happy.
-			typename U>
-		/// Promote unsigned short to unsigned int.
-		struct promote_type<unsigned short, U> 
-		{
-			typedef unsigned int type;
-		};
-
-		template<
-			/// Make gcc happy.
-			typename U>
-		/// Promote signed int to signed long long.
-		struct promote_type<signed int, U> 
-		{
-			typedef signed long long type;
-		};
-
-		template<
-			/// Make gcc happy.
-			typename U>
-		/// Promote unsigned int to unsigned long long.
-		struct promote_type<unsigned int, U> 
-		{
-			typedef unsigned long long type;
-		};
-
-	public:
+    fpml::fixed_point<B, I, F> operator -(
+        /// Diminuend for subtraction.
+        fpml::fixed_point<B, I, F> const& summand)
+    {
+        // TODO: Division.
+    }
 
 	/// Multiplication.
-	//!
-	//! Through the use of boost::multiplicative operator* is also defined and
-	//! implemented by calling this operator.
 	//!
 	//! /return A reference to this object.
 	fpml::fixed_point<B, I, F> & operator *=(
 		/// Factor for mutliplication.
 		fpml::fixed_point<B, I, F> const& factor)
 	{
-		
-		value_ = (static_cast< typename fpml::fixed_point<B, I, F>::template 
-				promote_type<B>::type>
+		value_ = (static_cast<integral_promoter::type>
 			(value_) * factor.value_) >> F;
 		return *this;
 	}
 
+    fpml::fixed_point<B, I, F> operator *(
+        /// Factor for mutliplication.
+        fpml::fixed_point<B, I, F> const& summand)
+    {
+        // TODO: Multiplication.
+    }
+
 	/// Division.
-	//!
-	//! Through the use of boost::multiplicative operator / is also defined and
-	//! implemented by calling this operator.
 	//!
 	//! /return A reference to this object.
 	fpml::fixed_point<B, I, F> & operator /=(
 		/// Divisor for division.
 		fpml::fixed_point<B, I, F> const& divisor)
 	{
-		value_ = (static_cast<typename fpml::fixed_point<B, I, F>::template 
-				promote_type<B>::type>
+		value_ = (static_cast<integral_promoter::type>
 			(value_) << F) / divisor.value_;
 		return *this;
 	}
 
+    fpml::fixed_point<B, I, F> operator /(
+        /// Factor for division.
+        fpml::fixed_point<B, I, F> const& summand)
+    {
+        // TODO: Division.
+    }
+
 	/// Shift right.
-	//!
-	//! Through the use of boost::shiftable operator >> is also defined and
-	//! implemented by calling this operator.
 	//!
 	//! /return A reference to this object.
 	fpml::fixed_point<B, I, F> & operator >>=(
@@ -579,10 +571,14 @@ public:
 		return *this;
 	}
 
+    fpml::fixed_point<B, I, F> operator >>(
+        /// Count of positions to shift.
+        size_t shift)
+    {
+        // TODO: R shift.
+    }
+
 	/// Shift left.
-	//!
-	//! Through the use of boost::shiftable operator << is also defined and
-	//! implemented by calling this operator.
 	//!
 	//! /return A reference to this object.
 	fpml::fixed_point<B, I, F> & operator <<=(
@@ -592,6 +588,13 @@ public:
 		value_ <<= shift;
 		return *this;
 	}
+
+    fpml::fixed_point<B, I, F> operator <<(
+        /// Count of positions to shift.
+        size_t shift)
+    {
+        // TODO: L shift.
+    }
 
 	/// Convert to char.
 	//!
@@ -689,6 +692,8 @@ public:
 		return (bool)value_;	
 	}
 
+    // TODO: Convert to B.
+
 	/// Convert to a float.
 	//!
 	//! /return The value converted to a float.
@@ -731,6 +736,7 @@ public:
 		/// The argument to the function.
 		fpml::fixed_point<B, I, F> x)
 	{
+        // TODO: Check sign bit.
 		return x < fpml::fixed_point<B, I, F>(0) ? -x : x;
 	}
 
@@ -751,6 +757,9 @@ public:
 		fpml::fixed_point<B, I, F> x)
 	{
 		fpml::fixed_point<B, I, F> result;
+        // TODO: Change to bit operations:
+        // x.value_ & ~(power2<F>::value-1):
+        // int16_t(power2<4>::value-1) is a 0b00000000'00001111
 		result.value_ = x.value_ & ~(power2<F>::value-1);
 		return result + fpml::fixed_point<B, I, F>(
 			x.value_ & (power2<F>::value-1) ? 1 : 0);
@@ -772,6 +781,9 @@ public:
 		/// The argument to the function.
 		fpml::fixed_point<B, I, F> x)
 	{
+        // TODO: Change to bit operations:
+        // x.value_ & ~(power2<F>::value-1):
+        // int16_t(power2<4>::value-1) is a 0b00000000'00001111
 		fpml::fixed_point<B, I, F> result;
 		result.value_ = x.value_ & ~(power2<F>::value-1);
 		return result;
@@ -1076,6 +1088,7 @@ S & operator>>(
 	/// A reference to the value to be read.
 	fpml::fixed_point<B, I, F> & v)
 {
+    // TODO: Edit it.
 	double value=0.;
 	s >> value;
 	if (s)
@@ -1105,6 +1118,7 @@ S & operator<<(
 	/// A const reference to the value to be written.
 	fpml::fixed_point<B, I, F> const& v)
 {
+    // TODO: Edit it.
 	double value = v;
 	s << value;
 	return s;
@@ -1221,6 +1235,7 @@ public:
 	//! The member stores true for a type that has a signed representation, 
 	//! which is the case for all fixed_point types with a signed base type.
 	//! Otherwise it stores false.
+    // TODO: Edit it.
 	static const bool is_signed = 
 		std::numeric_limits<typename fp_type::base_type>::is_signed;
 
@@ -1283,6 +1298,7 @@ public:
 	static fp_type (min)()
 	{
 		fp_type minimum;
+        // TODO: Edit it.
 		minimum.value_ = (std::numeric_limits<typename fp_type::base_type>::min)();
 		return minimum;
 	}
@@ -1293,6 +1309,7 @@ public:
 	static fp_type (max)()
 	{
 		fp_type maximum;
+        // TODO: Edit it.
 		maximum.value_ = (std::numeric_limits<typename fp_type::base_type>::max)();
 		return maximum;
 	}
