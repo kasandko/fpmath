@@ -202,6 +202,8 @@ template<
 //! <<=  ==>  << (left_shiftable).
 class fixed_point
 {
+    using fp_type = fixed_point<B, I, F, TIntegralPromoter, TNumericLimits>;
+
 	// Only integer types qualify for base type. If this line triggers an error,
 	// the base type is not an integer type. Note: char does not qualify as an
 	// integer because of its uncertainty in definition. Use signed char or
@@ -220,7 +222,7 @@ class fixed_point
 
 	/// Grant the numeric_limits specialization for this fixed_point class 
 	/// access to private members.
-	friend class std::numeric_limits<fpml::fixed_point<B, I, F> >;
+	friend class std::numeric_limits<fp_type>;
 
 	template<
 		/// The power.
@@ -275,6 +277,9 @@ class fixed_point
 		: value_(value)
 	{ }
 
+    static const B _FRACTIONAL_MASK = (B(1) << F) - 1;
+    static const B _INTEGER_MASK = ~_FRACTIONAL_MASK;
+
 public:
 	/// The base type of this fixed_point class.
 	using base_type = B;
@@ -290,9 +295,9 @@ public:
 	/// The fractional part bit count.
 	static const unsigned char fractional_bit_count = F;
 
-    static fixed_point<B, I, F> create_with_raw(const base_type & value)
+    static fp_type create_with_raw(const base_type & value)
     {
-        fixed_point<B, I, F> fp();
+        fp_type fp();
         fp._value = value;
         return fp;
     }
@@ -367,7 +372,7 @@ public:
 	/// Copy constructor.
 	fixed_point(
 		/// The right hand side.
-		fixed_point<B, I, F> const& rhs)
+		fp_type const& rhs)
 		: value_(rhs.value_)
 	{ }
 
@@ -379,7 +384,7 @@ public:
 	/// Converting copy constructor.
 	fixed_point(
 		/// The right hand side.
-		fixed_point<B, I2, F2> const& rhs)
+		fixed_point<B, I2, F2, TIntegralPromoter, TNumericLimits> const& rhs)
 		: value_(rhs.value_)
 	{ 
 		if (I-I2 > 0)
@@ -389,11 +394,11 @@ public:
 	}
 
 	/// Copy assignment operator.
-	fpml::fixed_point<B, I, F> & operator =(
+	fp_type & operator =(
 		/// The right hand side.
-		fpml::fixed_point<B, I, F> const& rhs)
+		fp_type const& rhs)
 	{
-		fpml::fixed_point<B, I, F> temp(rhs);
+		fp_type temp(rhs);
 		swap(temp);
 		return *this;
 	}
@@ -404,11 +409,11 @@ public:
 		/// The other fractional part bit count.
 		unsigned char F2>
 	/// Converting copy assignment operator.
-	fpml::fixed_point<B, I, F> & operator =(
+	fp_type & operator =(
 		/// The right hand side.
-		fpml::fixed_point<B, I2, F2> const& rhs)
+		fpml::fixed_point<B, I2, F2, TIntegralPromoter, TNumericLimits> const& rhs)
 	{
-		fpml::fixed_point<B, I, F> temp(rhs);
+		fp_type temp(rhs);
 		swap(temp);
 		return *this;
 	}
@@ -416,7 +421,7 @@ public:
 	/// Exchanges the elements of two fixed_point objects.
 	void swap(
 		/// The right hand side.
-		fpml::fixed_point<B, I, F> & rhs)
+		fp_type & rhs)
 	{
 		std::swap(value_, rhs.value_);
 	}
@@ -426,7 +431,7 @@ public:
 	//! /return true if less than, false otherwise.
 	bool operator <(
 		/// Right hand side.
-		fpml::fixed_point<B, I, F> const& rhs) const
+		fp_type const& rhs) const
 	{
 		return 
 			value_ < rhs.value_; 
@@ -437,14 +442,14 @@ public:
 	//! /return true if equal, false otherwise.
 	bool operator ==(
 		/// Right hand side.
-		fpml::fixed_point<B, I, F> const& rhs) const
+		fp_type const& rhs) const
 	{
 		return 
 			value_ == rhs.value_; 
 	}
     /// Other comparison operators.
     #undef FPML_COMP_OP
-    #define FPML_COMP_OP(OP) bool operator##OP (fpml::fixed_point<B, I, F> const& rhs) const { return std::rel_ops::operator##OP (*this, rhs); }
+    #define FPML_COMP_OP(OP) bool operator##OP (fp_type const& rhs) const { return std::rel_ops::operator##OP (*this, rhs); }
 
     FPML_COMP_OP(!=)
     FPML_COMP_OP(<=)
@@ -470,9 +475,9 @@ public:
 	//! a positive value that is out of range and cannot be represented.
 	//!
 	//! /return The negative value.
-	fpml::fixed_point<B, I, F> operator -() const
+	fp_type operator -() const
 	{
-		fpml::fixed_point<B, I, F> result;
+		fp_type result;
 		result.value_ = -value_;
 		return result;
 	}
@@ -480,15 +485,15 @@ public:
 	/// Increment.
 	//!
 	//! /return A reference to this object.
-	fpml::fixed_point<B, I, F> & operator ++()
+	fp_type & operator ++()
 	{
 		value_ += power2<F>::value;
 		return *this;
 	}
 
-    fpml::fixed_point<B, I, F> & operator ++(int)
+    fp_type & operator ++(int)
 	{
-        fpml::fixed_point<B, I, F> old;
+        fp_type old;
         ++(*this);
         return old;
 	}
@@ -496,15 +501,15 @@ public:
 	/// Decrement.
 	//!
 	//! /return A reference to this object.
-	fpml::fixed_point<B, I, F> & operator --()
+	fp_type & operator --()
 	{
 		value_ -= power2<F>::value;
 		return *this;
 	}
 
-    fpml::fixed_point<B, I, F> & operator --(int)
+    fp_type & operator --(int)
 	{
-		fpml::fixed_point<B, I, F> old;
+		fp_type old;
         --(*this);
         return old;
 	}
@@ -512,19 +517,19 @@ public:
 	/// Addition.
 	//!
 	//! /return A reference to this object.
-	fpml::fixed_point<B, I, F> & operator +=(
+	fp_type & operator +=(
 		/// Summand for addition.
-		fpml::fixed_point<B, I, F> const& summand)
+		fp_type const& summand)
 	{
 		value_ += summand.value_;
 		return *this;
 	}
 
-    fpml::fixed_point<B, I, F> operator +(
+    fp_type operator +(
         /// Summand for addition.
-        fpml::fixed_point<B, I, F> const& summand)
+        fp_type const& summand)
     {
-        fpml::fixed_point<B, I, F> result(*this);
+        fp_type result(*this);
         result += summand;
         return result;
     }
@@ -532,19 +537,19 @@ public:
 	/// Subtraction.
 	//!
 	//! /return A reference to this object.
-	fpml::fixed_point<B, I, F> & operator -=(
+	fp_type & operator -=(
 		/// Diminuend for subtraction.
-		fpml::fixed_point<B, I, F> const& diminuend)
+		fp_type const& diminuend)
 	{
 		value_ -= diminuend.value_;
 		return *this;
 	}
 
-    fpml::fixed_point<B, I, F> operator -(
+    fp_type operator -(
         /// Diminuend for subtraction.
-        fpml::fixed_point<B, I, F> const& diminuend)
+        fp_type const& diminuend)
     {
-        fpml::fixed_point<B, I, F> result(*this);
+        fp_type result(*this);
         result -= diminuend;
         return result;
     }
@@ -552,20 +557,20 @@ public:
 	/// Multiplication.
 	//!
 	//! /return A reference to this object.
-	fpml::fixed_point<B, I, F> & operator *=(
+	fp_type & operator *=(
 		/// Factor for mutliplication.
-		fpml::fixed_point<B, I, F> const& factor)
+		fp_type const& factor)
 	{
 		value_ = (static_cast<integral_promoter::type>
 			(value_) * factor.value_) >> F;
 		return *this;
 	}
 
-    fpml::fixed_point<B, I, F> operator *(
+    fp_type operator *(
         /// Factor for mutliplication.
-        fpml::fixed_point<B, I, F> const& factor)
+        fp_type const& factor)
     {
-        fpml::fixed_point<B, I, F> result(*this);
+        fp_type result(*this);
         result *= factor;
         return result;
     }
@@ -573,20 +578,20 @@ public:
 	/// Division.
 	//!
 	//! /return A reference to this object.
-	fpml::fixed_point<B, I, F> & operator /=(
+	fp_type & operator /=(
 		/// Divisor for division.
-		fpml::fixed_point<B, I, F> const& divisor)
+		fp_type const& divisor)
 	{
 		value_ = (static_cast<integral_promoter::type>
 			(value_) << F) / divisor.value_;
 		return *this;
 	}
 
-    fpml::fixed_point<B, I, F> operator /(
+    fp_type operator /(
         /// Factor for division.
-        fpml::fixed_point<B, I, F> const& divisor)
+        fp_type const& divisor)
     {
-        fpml::fixed_point<B, I, F> result(*this);
+        fp_type result(*this);
         result /= divisor;
         return result;
     }
@@ -594,7 +599,7 @@ public:
 	/// Shift right.
 	//!
 	//! /return A reference to this object.
-	fpml::fixed_point<B, I, F> & operator >>=(
+	fp_type & operator >>=(
 		/// Count of positions to shift.
 		size_t shift)
 	{
@@ -602,11 +607,11 @@ public:
 		return *this;
 	}
 
-    fpml::fixed_point<B, I, F> operator >>(
+    fp_type operator >>(
         /// Count of positions to shift.
         size_t shift)
     {
-        fpml::fixed_point<B, I, F> result(*this);
+        fp_type result(*this);
         result >>= shift;
         return result;
     }
@@ -614,7 +619,7 @@ public:
 	/// Shift left.
 	//!
 	//! /return A reference to this object.
-	fpml::fixed_point<B, I, F> & operator <<=(
+	fp_type & operator <<=(
 		/// Count of positions to shift.
 		size_t shift)
 	{
@@ -622,11 +627,11 @@ public:
 		return *this;
 	}
 
-    fpml::fixed_point<B, I, F> operator <<(
+    fp_type operator <<(
         /// Count of positions to shift.
         size_t shift)
     {
-        fpml::fixed_point<B, I, F> result(*this);
+        fp_type result(*this);
         result <<= shift;
         return result;
     }
@@ -786,12 +791,11 @@ public:
 	//! The fabs function computes the absolute value of its argument.
 	//!
 	//! /return The absolute value of the argument.
-	friend fpml::fixed_point<B, I, F> fabs(
+	friend fp_type fabs(
 		/// The argument to the function.
-		fpml::fixed_point<B, I, F> x)
+		fp_type x)
 	{
-        // TODO: Check sign bit.
-		return x < fpml::fixed_point<B, I, F>(0) ? -x : x;
+		return x < fp_type(0) ? -x : x;
 	}
 
 	/**************************************************************************/
@@ -806,17 +810,13 @@ public:
 	//! its argument.
 	//!
 	//! /return The smallest integral value not less than the argument.
-	friend fpml::fixed_point<B, I, F> ceil(
+	friend fp_type ceil(
 		/// The argument to the function.
-		fpml::fixed_point<B, I, F> x)
+		fp_type x)
 	{
-		fpml::fixed_point<B, I, F> result;
-        // TODO: Change to bit operations:
-        // x.value_ & ~(power2<F>::value-1):
-        // int16_t(power2<4>::value-1) is a 0b00000000'00001111
-		result.value_ = x.value_ & ~(power2<F>::value-1);
-		return result + fpml::fixed_point<B, I, F>(
-			x.value_ & (power2<F>::value-1) ? 1 : 0);
+		fp_type result;
+		result.value_ = x.value_ & _INTEGER_MASK;
+		return result + fp_type(x.value_ & _FRACTIONAL_MASK ? 1 : 0);
 	}
 
 	/**************************************************************************/
@@ -831,15 +831,12 @@ public:
 	//! its argument.
 	//!
 	//! /return The largest integral value not greater than the argument.
-	friend fpml::fixed_point<B, I, F> floor(
+	friend fp_type floor(
 		/// The argument to the function.
-		fpml::fixed_point<B, I, F> x)
+		fp_type x)
 	{
-        // TODO: Change to bit operations:
-        // x.value_ & ~(power2<F>::value-1):
-        // int16_t(power2<4>::value-1) is a 0b00000000'00001111
-		fpml::fixed_point<B, I, F> result;
-		result.value_ = x.value_ & ~(power2<F>::value-1);
+		fp_type result;
+		result.value_ = x.value_ & _INTEGER_MASK;
 		return result;
 	}
 
@@ -854,13 +851,13 @@ public:
 	//! The fmod function computes the fixed point remainder of x/y.
 	//!
 	//! /return The fixed point remainder of x/y.
-	friend fpml::fixed_point<B, I, F> fmod(
+	friend fp_type fmod(
 		/// The argument to the function.
-		fpml::fixed_point<B, I, F> x,
+		fp_type x,
 		/// The argument to the function.
-		fpml::fixed_point<B, I, F> y)
+		fp_type y)
 	{
-		fpml::fixed_point<B, I, F> result;
+		fp_type result;
 		result.value_ = x.value_ % y.value_;
 		return result;
 	}
@@ -878,21 +875,20 @@ public:
 	//! part in the object pointed to by ptr.
 	//!
 	//! /return The signed fractional part of x/y.
-	friend fpml::fixed_point<B, I, F> modf(
+	friend fp_type modf(
 		/// The argument to the function.
-		fpml::fixed_point<B, I, F> x,
+		fp_type x,
 		/// The pointer to the integer part.
-		fpml::fixed_point<B, I, F> * ptr)
+		fp_type * ptr)
 	{
-		fpml::fixed_point<B, I, F> integer;
-		integer.value_ = x.value_ & ~(power2<F>::value-1);
-		*ptr = x < fpml::fixed_point<B, I, F>(0) ? 
-			integer + fpml::fixed_point<B, I, F>(1) : integer;
+		fp_type integer;
+		integer.value_ = x.value_ & _INTEGER_MASK;
+		*ptr = x < fp_type(0) ? integer + fp_type(1) : integer;
 
-		fpml::fixed_point<B, I, F> fraction;
-		fraction.value_ = x.value_ & (power2<F>::value-1);
+		fp_type fraction;
+		fraction.value_ = x.value_ & _FRACTIONAL_MASK;
 
-		return x < fpml::fixed_point<B, I, F>(0) ? -fraction : fraction;
+		return x < fp_type(0) ? -fraction : fraction;
 	}
 
 	/**************************************************************************/
@@ -907,12 +903,13 @@ public:
 	//! the identity e^(a+b) = e^a * e^b.
 	//!
 	//! /return The exponential of the argument.
-	friend fpml::fixed_point<B, I, F> exp(
+	friend fp_type exp(
 		/// The argument to the exp function.
-		fpml::fixed_point<B, I, F> x)
+		fp_type x)
 	{
+        // TODO: Expand this table.
 		// a[x] = exp( (1/2) ^ x ), x: [0 ... 31]
-		fpml::fixed_point<B, I, F> a[] = {
+		fp_type a[] = {
 			1.64872127070012814684865078781, 
 			1.28402541668774148407342056806, 
 			1.13314845306682631682900722781, 
@@ -945,12 +942,12 @@ public:
 			1.00000000093132257504915938475,
 			1.00000000046566128741615947508 };
 
-		fpml::fixed_point<B, I, F> e(2.718281828459045);
+		fp_type e(2.718281828459045);
 
-		fpml::fixed_point<B, I, F> y(1);
-		for (int i=F-1; i>=0; --i)
+		fp_type y(1);
+		for (int32_t i=F-1; i>=0; --i)
 		{
-			if (!(x.value_ & 1<<i))
+			if (!(x.value_ & B(1)<<i))
 				y *= a[F-i-1];
 		}
 
@@ -990,24 +987,23 @@ public:
 	//! additions and 4 multiplications.
 	//!
 	//! /return The cosine of the argument.
-	friend fpml::fixed_point<B, I, F> cos(
+	friend fp_type cos(
 		/// The argument to the cos function.
-		fpml::fixed_point<B, I, F> x)
+		fp_type x)
 	{
-		fpml::fixed_point<B, I, F> x_ = 
-			fmod(x, fpml::fixed_point<B, I, F>(M_PI * 2));
-		if (x_ > fpml::fixed_point<B, I, F>(M_PI))
-			x_ -= fpml::fixed_point<B, I, F>(M_PI * 2);
+		fp_type x_ = 
+			fmod(x, fp_type(M_PI * 2));
+		if (x_ > fp_type(M_PI))
+			x_ -= fp_type(M_PI * 2);
 
-		fpml::fixed_point<B, I, F> xx = x_ * x_;
+		fp_type xx = x_ * x_;
 
-		fpml::fixed_point<B, I, F> y = - xx * 
-			fpml::fixed_point<B, I, F>(1. / (2 * 3 * 4 * 5 * 6));
-		y += fpml::fixed_point<B, I, F>(1. / (2 * 3 * 4));
+		fp_type y = - xx * fp_type(1. / (2 * 3 * 4 * 5 * 6));
+		y += fp_type(1. / (2 * 3 * 4));
 		y *= xx;
-		y -= fpml::fixed_point<B, I, F>(1. / (2));
+		y -= fp_type(1. / (2));
 		y *= xx;
-		y += fpml::fixed_point<B, I, F>(1);
+		y += fp_type(1);
 
 		return y;
 	}
@@ -1033,24 +1029,22 @@ public:
 	//! additions and 5 multiplications.
 	//!
 	//! /return The sine of the argument.
-	friend fpml::fixed_point<B, I, F> sin(
+	friend fp_type sin(
 		/// The argument to the sin function.
-		fpml::fixed_point<B, I, F> x)
+		fp_type x)
 	{
-		fpml::fixed_point<B, I, F> x_ = 
-			fmod(x, fpml::fixed_point<B, I, F>(M_PI * 2));
-		if (x_ > fpml::fixed_point<B, I, F>(M_PI))
-			x_ -= fpml::fixed_point<B, I, F>(M_PI * 2);
+		fp_type x_ = fmod(x, fp_type(M_PI * 2));
+		if (x_ > fp_type(M_PI))
+			x_ -= fp_type(M_PI * 2);
 
-		fpml::fixed_point<B, I, F> xx = x_ * x_;
+		fp_type xx = x_ * x_;
 
-		fpml::fixed_point<B, I, F> y = - xx * 
-			fpml::fixed_point<B, I, F>(1. / (2 * 3 * 4 * 5 * 6 * 7));
-		y += fpml::fixed_point<B, I, F>(1. / (2 * 3 * 4 * 5));
+		fp_type y = - xx * fp_type(1. / (2 * 3 * 4 * 5 * 6 * 7));
+		y += fp_type(1. / (2 * 3 * 4 * 5));
 		y *= xx;
-		y -= fpml::fixed_point<B, I, F>(1. / (2 * 3));
+		y -= fp_type(1. / (2 * 3));
 		y *= xx;
-		y += fpml::fixed_point<B, I, F>(1);
+		y += fp_type(1);
 		y *= x_;
 
 		return y;
@@ -1076,23 +1070,23 @@ public:
 	//!
 	//! /return The square root of the argument. If the argument is negative, 
 	//! the function returns 0.
-	friend fpml::fixed_point<B, I, F> sqrt(
+	friend fp_type sqrt(
 		/// The argument to the square root function, a nonnegative fixed-point
 		/// value.
-		fpml::fixed_point<B, I, F> x)
+		fp_type x)
 	{
-		if (x < fpml::fixed_point<B, I, F>(0))
+		if (x < fp_type(0))
 		{
 			errno = EDOM;
 			return 0;
 		}
 
-		typename fpml::fixed_point<B, I, F>::template promote_type<B>::type op = 
-			static_cast<typename fpml::fixed_point<B, I, F>::template promote_type<B>::type>(
+		typename fp_type::template promote_type<B>::type op = 
+			static_cast<typename fp_type::template promote_type<B>::type>(
 				x.value_) << (I - 1);
-		typename fpml::fixed_point<B, I, F>::template promote_type<B>::type res = 0;
-		typename fpml::fixed_point<B, I, F>::template promote_type<B>::type one = 
-			(typename fpml::fixed_point<B, I, F>::template promote_type<B>::type)1 << 
+		typename fp_type::template promote_type<B>::type res = 0;
+		typename fp_type::template promote_type<B>::type one = 
+			(typename fp_type::template promote_type<B>::type)1 << 
 				(integral_promoter::limits::digits - 1); 
 
 		while (one > op)
@@ -1109,7 +1103,7 @@ public:
 			one >>= 2;
 		}
 
-		fpml::fixed_point<B, I, F> root;
+		fp_type root;
 		root.value_ = static_cast<B>(res);
 		return root;
 	}
@@ -1123,12 +1117,11 @@ private:
 template<
 	/// The input stream type.
 	typename S,
-	/// The base type of the fixed_point type. 
 	typename B,
-	/// The integer part bit count of the fixed_point type.
 	unsigned char I,
-	/// The fractional part bit count of the fixed_point type.
-	unsigned char F>
+	unsigned char F,
+    typename TIntegralPromoter,
+    typename TNumericLimits>
 /// Stream input operator.
 //!
 //! A value is first input to type double and then the read value is converted
@@ -1139,7 +1132,7 @@ S & operator>>(
 	/// The input stream.
 	S & s, 
 	/// A reference to the value to be read.
-	fpml::fixed_point<B, I, F> & v)
+	fpml::fixed_point<B, I, F, TIntegralPromoter, TNumericLimits> & v)
 {
     // TODO: Edit it.
 	double value=0.;
@@ -1153,12 +1146,11 @@ S & operator>>(
 template<
 	/// The output stream type.
 	typename S,
-	/// The base type of the fixed_point type. 
 	typename B,
-	/// The integer part bit count of the fixed_point type.
 	unsigned char I,
-	/// The fractional part bit count of the fixed_point type.
-	unsigned char F>
+	unsigned char F,
+    typename TIntegralPromoter,
+    typename TNumericLimits>
 /// Stream output operator.
 //!
 //! The fixed_point value is first converted to type double and then the output
@@ -1169,7 +1161,7 @@ S & operator<<(
 	/// The output stream.
 	S & s, 
 	/// A const reference to the value to be written.
-	fpml::fixed_point<B, I, F> const& v)
+	fpml::fixed_point<B, I, F, TIntegralPromoter, TNumericLimits> const& v)
 {
     // TODO: Edit it.
 	double value = v;
@@ -1191,18 +1183,17 @@ namespace std
 /******************************************************************************/
 
 template<
-	/// The base type of the fixed_point type. 
 	typename B,
-	/// The integer part bit count of the fixed_point type.
 	unsigned char I,
-	/// The fractional part bit count of the fixed_point type.
-	unsigned char F>
-class numeric_limits<fpml::fixed_point<B, I, F> >
+	unsigned char F,
+    typename TIntegralPromoter,
+    typename TNumericLimits>
+class numeric_limits<fpml::fixed_point<B, I, F, TIntegralPromoter, TNumericLimits> >
 {
 public:
 	/// The fixed_point type. This numeric_limits specialization is specialized
 	/// for this type.
-	typedef fpml::fixed_point<B, I, F> fp_type;
+	using fp_type = fpml::fixed_point<B, I, F, TIntegralPromoter, TNumericLimits>;
 
 	/// Tests whether a type allows denormalized values.
 	//!
