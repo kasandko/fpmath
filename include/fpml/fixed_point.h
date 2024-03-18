@@ -77,6 +77,9 @@ namespace fpml {
 //! results. A similar promotion needs to be done to the divisor in the
 //! case of division, but here the divisor needs to be shifted to the
 //! left an appropriate number of bits.
+//!
+//! Also this is contained type `limits` for providing numeric limits
+//! inteface for promotion type.
 template <typename T>
 class default_integral_promoter
 {
@@ -106,6 +109,7 @@ private:
 
 public:
     using type = promote_type<T>::type;
+    using limits = std::numeric_limits<type>;
 };
 
 // - swapable
@@ -131,7 +135,6 @@ inline constexpr bool is_valid_base_type_v =
     exttr::op::is_b_dividable_v<TPromotion, TPromotion, B>
     ;
 
-// TODO: Add trait for get numeric_limits from B.
 template<
 	/// The base type. Must be an integer type. 
 	//!
@@ -142,9 +145,15 @@ template<
 	/// The integer part bit count.
 	uint8_t I,
 	/// The fractional part bit count.
-	uint8_t F = sizeof (B) * CHAR_BIT - I> // //std::numeric_limits<B>::digits - I
+	uint8_t F = sizeof (B) * CHAR_BIT - I, // std::numeric_limits<B>::digits - I
     /// Integral type promoter for multiplication and division.
-    typename TIntegralPromoter = default_integral_promoter<B>
+    typename TIntegralPromoter = default_integral_promoter<B>,
+    /// Valid numeric limits for base type.
+    //!
+    //! Numeric limits must realised constants `signed`, `digits` and methods
+    //! `max()`, `min()`.
+    typename TNumericLimits = std::numeric_limits<B>
+>
 /// A fixed point type.
 //!
 //! This type is designed to be a plug-in type to replace the floating point
@@ -273,17 +282,27 @@ public:
     /// Integral type promoter for multiplication and division.
     using integral_promoter = TIntegralPromoter;
 
+    using base_type_limits = TNumericLimits;
+
 	/// The integer part bit count.
 	static const unsigned char integer_bit_count = I; 
 
 	/// The fractional part bit count.
 	static const unsigned char fractional_bit_count = F;
 
+    static fixed_point<B, I, F> create_with_raw(const base_type & value)
+    {
+        fixed_point<B, I, F> fp();
+        fp._value = value;
+        return fp;
+    }
+
 	/// Default constructor.
 	//!
 	//! Just as with built-in types no initialization is done. The value is
 	//! undetermined after executing this constructor.
 	fixed_point()
+        : value_()
 	{ }
 
 	template<
@@ -469,7 +488,9 @@ public:
 
     fpml::fixed_point<B, I, F> & operator ++(int)
 	{
-		// TODO: Post increment.
+        fpml::fixed_point<B, I, F> old;
+        ++(*this);
+        return old;
 	}
 
 	/// Decrement.
@@ -483,7 +504,9 @@ public:
 
     fpml::fixed_point<B, I, F> & operator --(int)
 	{
-		// TODO: Post increment.
+		fpml::fixed_point<B, I, F> old;
+        --(*this);
+        return old;
 	}
 
 	/// Addition.
@@ -501,7 +524,9 @@ public:
         /// Summand for addition.
         fpml::fixed_point<B, I, F> const& summand)
     {
-        // TODO: Summ.
+        fpml::fixed_point<B, I, F> result(*this);
+        result += summand;
+        return result;
     }
 
 	/// Subtraction.
@@ -517,9 +542,11 @@ public:
 
     fpml::fixed_point<B, I, F> operator -(
         /// Diminuend for subtraction.
-        fpml::fixed_point<B, I, F> const& summand)
+        fpml::fixed_point<B, I, F> const& diminuend)
     {
-        // TODO: Division.
+        fpml::fixed_point<B, I, F> result(*this);
+        result -= diminuend;
+        return result;
     }
 
 	/// Multiplication.
@@ -536,9 +563,11 @@ public:
 
     fpml::fixed_point<B, I, F> operator *(
         /// Factor for mutliplication.
-        fpml::fixed_point<B, I, F> const& summand)
+        fpml::fixed_point<B, I, F> const& factor)
     {
-        // TODO: Multiplication.
+        fpml::fixed_point<B, I, F> result(*this);
+        result *= factor;
+        return result;
     }
 
 	/// Division.
@@ -555,9 +584,11 @@ public:
 
     fpml::fixed_point<B, I, F> operator /(
         /// Factor for division.
-        fpml::fixed_point<B, I, F> const& summand)
+        fpml::fixed_point<B, I, F> const& divisor)
     {
-        // TODO: Division.
+        fpml::fixed_point<B, I, F> result(*this);
+        result /= divisor;
+        return result;
     }
 
 	/// Shift right.
@@ -575,7 +606,9 @@ public:
         /// Count of positions to shift.
         size_t shift)
     {
-        // TODO: R shift.
+        fpml::fixed_point<B, I, F> result(*this);
+        result >>= shift;
+        return result;
     }
 
 	/// Shift left.
@@ -593,7 +626,9 @@ public:
         /// Count of positions to shift.
         size_t shift)
     {
-        // TODO: L shift.
+        fpml::fixed_point<B, I, F> result(*this);
+        result <<= shift;
+        return result;
     }
 
 	/// Convert to char.
@@ -601,7 +636,7 @@ public:
 	//! /return The value converted to char.
 	operator char() const
 	{
-		return (char)(value_ >> F);	
+		return static_cast<char>(value_ >> F);	
 	}
 
 	/// Convert to signed char.
@@ -609,7 +644,7 @@ public:
 	//! /return The value converted to signed char.
 	operator signed char() const
 	{
-		return (signed char)(value_ >> F);	
+		return static_cast<signed char>(value_ >> F);	
 	}
 
 	/// Convert to unsigned char.
@@ -617,7 +652,7 @@ public:
 	//! /return The value converted to unsigned char.
 	operator unsigned char() const
 	{
-		return (unsigned char)(value_ >> F);	
+		return static_cast<unsigned char>(value_ >> F);	
 	}
 
 	/// Convert to short.
@@ -625,7 +660,7 @@ public:
 	//! /return The value converted to short.
 	operator short() const
 	{
-		return (short)(value_ >> F);	
+		return static_cast<short>(value_ >> F);	
 	}
 
 	/// Convert to unsigned short.
@@ -633,7 +668,7 @@ public:
 	//! /return The value converted to unsigned short.
 	operator unsigned short() const
 	{
-		return (unsigned short)(value_ >> F);	
+		return static_cast<unsigned short>(value_ >> F);	
 	}
 
 	/// Convert to int.
@@ -641,7 +676,7 @@ public:
 	//! /return The value converted to int.
 	operator int() const
 	{
-		return (int)(value_ >> F);	
+		return static_cast<int>(value_ >> F);	
 	}
 
 	/// Convert to unsigned int.
@@ -649,7 +684,7 @@ public:
 	//! /return The value converted to unsigned int.
 	operator unsigned int() const
 	{
-		return (unsigned int)(value_ >> F);	
+		return static_cast<unsigned int>(value_ >> F);	
 	}
 
 	/// Convert to long.
@@ -657,7 +692,7 @@ public:
 	//! /return The value converted to long.
 	operator long() const
 	{
-		return (long)(value_ >> F);	
+		return static_cast<long>(value_ >> F);	
 	}
 
 	/// Convert to unsigned long.
@@ -665,7 +700,7 @@ public:
 	//! /return The value converted to unsigned long.
 	operator unsigned long() const
 	{
-		return (unsigned long)(value_ >> F);	
+		return static_cast<unsigned long>(value_ >> F);	
 	}
 
 	/// Convert to long long.
@@ -673,7 +708,7 @@ public:
 	//! /return The value converted to long long.
 	operator long long() const
 	{
-		return (long long)(value_ >> F);	
+		return static_cast<long long>(value_ >> F);	
 	}
 
 	/// Convert to unsigned long long.
@@ -681,7 +716,7 @@ public:
 	//! /return The value converted to unsigned long long.
 	operator unsigned long long() const
 	{
-		return (unsigned long long)(value_ >> F);	
+		return static_cast<unsigned long long>(value_ >> F);	
 	}
 
 	/// Convert to a bool.
@@ -689,10 +724,29 @@ public:
 	//! /return The value converted to a bool.
 	operator bool() const
 	{
-		return (bool)value_;	
+		return static_cast<bool>value_;	
 	}
 
-    // TODO: Convert to B.
+    /// Convert to a base type.
+	//!
+    //! Such as base type could be one of previously used
+    //! types for casting we can not be use cast operator
+    //! for this.
+    //!
+	//! /return The value converted to a base type.
+
+    base_type cast_to_base() const
+    {
+        return value_ >> F;
+    }
+
+    /// Give access to base type.
+    //!
+    //! /return The reference to base type value.
+    base_type & data()
+    {
+        return value_;
+    }
 
 	/// Convert to a float.
 	//!
@@ -1039,8 +1093,7 @@ public:
 		typename fpml::fixed_point<B, I, F>::template promote_type<B>::type res = 0;
 		typename fpml::fixed_point<B, I, F>::template promote_type<B>::type one = 
 			(typename fpml::fixed_point<B, I, F>::template promote_type<B>::type)1 << 
-				(std::numeric_limits<typename fpml::fixed_point<B, I, F>::template promote_type<B>
-					::type>::digits - 1); 
+				(integral_promoter::limits::digits - 1); 
 
 		while (one > op)
 			one >>= 2;
@@ -1235,9 +1288,7 @@ public:
 	//! The member stores true for a type that has a signed representation, 
 	//! which is the case for all fixed_point types with a signed base type.
 	//! Otherwise it stores false.
-    // TODO: Edit it.
-	static const bool is_signed = 
-		std::numeric_limits<typename fp_type::base_type>::is_signed;
+	static const bool is_signed = fp_type::base_type_limits::is_signed;
 
 	/// Tests if a type has an explicit specialization defined in the template 
 	/// class numeric_limits.
@@ -1298,8 +1349,7 @@ public:
 	static fp_type (min)()
 	{
 		fp_type minimum;
-        // TODO: Edit it.
-		minimum.value_ = (std::numeric_limits<typename fp_type::base_type>::min)();
+		minimum.value_ = (fp_type::base_type_limits::min)();
 		return minimum;
 	}
 
@@ -1309,8 +1359,7 @@ public:
 	static fp_type (max)()
 	{
 		fp_type maximum;
-        // TODO: Edit it.
-		maximum.value_ = (std::numeric_limits<typename fp_type::base_type>::max)();
+		maximum.value_ = (fp_type::base_type_limits::max)();
 		return maximum;
 	}
 
