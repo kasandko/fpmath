@@ -51,6 +51,7 @@
 #include <cerrno>
 #include <type_traits>
 #include <utility>
+#include <string>
 #include <ex_type_traits/op_traits.h>
 
 namespace fpml {
@@ -112,6 +113,70 @@ public:
     using limits = std::numeric_limits<type>;
 };
 
+template <typename TInteger>
+struct default_integral_methods
+{
+    std::string to_str(const TInteger & value)
+    {
+        TInteger value_(value);
+        std::string result;
+        const bool is_neg = value_ < 0;
+
+        if (is_neg)
+            value_ = -value_;
+
+        while (true)
+        {
+            auto remainder =
+                static_cast<std::string::value_type>(value_ % 10u);
+            value_ /= 10u;
+            remainder += std::string::value_type('0');
+            result = remainder + result;
+            if (value_ == 0)
+                break;
+        }
+
+        return is_neg
+            ? std::string("-") + result
+            : result;
+    }
+
+    TInteger from_str(const std::string & value)
+    {
+        if (value.empty())
+            return 0;
+
+        TInteger result;
+        const bool is_neg = value[0] == '-';
+
+        for (size_t i = is_neg ? 1u : 0u; i < value.size(); ++i)
+        {
+            std::string::value_type ch = value[i];
+            if (ch < '0' || ch > '9')
+                return 0;
+            result = result * 10u + TInteger(ch - '0');
+        }
+
+        return result * (is_neg ? -1 : 1);
+    }
+};
+
+template <typename T>
+struct default_base_type_trait
+{
+    /// Valid numeric limits for base type.
+    //!
+    //! Numeric limits must realised constants `signed`, `digits` and methods
+    //! `max()`, `min()`.
+    using limits = std::numeric_limits<T>;
+    using methods = default_integral_methods<T>;
+
+    /// Integral type promoter for multiplication and division.
+    using promotion_type = default_integral_promoter<T>::type;
+    using promotion_limits = default_integral_promoter<T>::limits;
+    using promotion_methods = default_integral_methods<promotion_type>;
+};
+
 // - swapable
 // - convert to char, signad char, unsigned char, short,
 //   unsigned short, int, unsigned int, long, unsigned long,
@@ -146,13 +211,8 @@ template<
 	uint8_t I,
 	/// The fractional part bit count.
 	uint8_t F = sizeof (B) * CHAR_BIT - I, // std::numeric_limits<B>::digits - I
-    /// Integral type promoter for multiplication and division.
-    typename TIntegralPromoter = default_integral_promoter<B>,
-    /// Valid numeric limits for base type.
-    //!
-    //! Numeric limits must realised constants `signed`, `digits` and methods
-    //! `max()`, `min()`.
-    typename TNumericLimits = std::numeric_limits<B>
+    
+    typename TBaseTypeTrait = default_base_type_trait<B>
 >
 /// A fixed point type.
 //!
@@ -202,13 +262,13 @@ template<
 //! <<=  ==>  << (left_shiftable).
 class fixed_point
 {
-    using fp_type = fixed_point<B, I, F, TIntegralPromoter, TNumericLimits>;
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
 
 	// Only integer types qualify for base type. If this line triggers an error,
 	// the base type is not an integer type. Note: char does not qualify as an
 	// integer because of its uncertainty in definition. Use signed char or
 	// unsigned char to be explicit.
-    static_assert(is_valid_base_type_v<B, TIntegralPromoter::type>, "Invalid base type.");
+    static_assert(is_valid_base_type_v<B, TBaseTypeTrait::promotion_type>, "Invalid base type.");
 
 	// Make sure that the bit counts are ok. If this line triggers an error, the
 	// sum of the bit counts for the fractional and integer parts do not match 
@@ -284,10 +344,7 @@ public:
 	/// The base type of this fixed_point class.
 	using base_type = B;
 
-    /// Integral type promoter for multiplication and division.
-    using integral_promoter = TIntegralPromoter;
-
-    using base_type_limits = TNumericLimits;
+    using base_type_trait = TBaseTypeTrait;
 
 	/// The integer part bit count.
 	static const unsigned char integer_bit_count = I; 
@@ -384,7 +441,7 @@ public:
 	/// Converting copy constructor.
 	fixed_point(
 		/// The right hand side.
-		fixed_point<B, I2, F2, TIntegralPromoter, TNumericLimits> const& rhs)
+		fixed_point<B, I2, F2, TBaseTypeTrait> const& rhs)
 		: value_(rhs.value_)
 	{ 
 		if (I-I2 > 0)
@@ -411,7 +468,7 @@ public:
 	/// Converting copy assignment operator.
 	fp_type & operator =(
 		/// The right hand side.
-		fpml::fixed_point<B, I2, F2, TIntegralPromoter, TNumericLimits> const& rhs)
+		fpml::fixed_point<B, I2, F2, TBaseTypeTrait> const& rhs)
 	{
 		fp_type temp(rhs);
 		swap(temp);
@@ -561,7 +618,7 @@ public:
 		/// Factor for mutliplication.
 		fp_type const& factor)
 	{
-		value_ = (static_cast<integral_promoter::type>
+		value_ = (static_cast<base_type_trait::promotion_type>
 			(value_) * factor.value_) >> F;
 		return *this;
 	}
@@ -582,7 +639,7 @@ public:
 		/// Divisor for division.
 		fp_type const& divisor)
 	{
-		value_ = (static_cast<integral_promoter::type>
+		value_ = (static_cast<base_type_trait::promotion_type>
 			(value_) << F) / divisor.value_;
 		return *this;
 	}
@@ -751,6 +808,23 @@ public:
     base_type & data()
     {
         return value_;
+    }
+
+    base_type fract()
+    {
+        return value_ & _INTEGER_MASK;
+    }
+
+    /// Convert to std::string.
+    //!
+    //! /return The value converted to a string.
+    std::string toString() const
+    {
+        std::string integer =
+            base_type_trait::methods::to_str(value_ >> F);
+        std::string fractional =
+            base_type_trait::methods::to_str(value_ & _INTEGER_MASK);
+        return integer + std::localeconv()->decimal_point + fractional;
     }
 
 	/// Convert to a float.
@@ -1081,13 +1155,10 @@ public:
 			return 0;
 		}
 
-		typename fp_type::template promote_type<B>::type op = 
-			static_cast<typename fp_type::template promote_type<B>::type>(
-				x.value_) << (I - 1);
-		typename fp_type::template promote_type<B>::type res = 0;
-		typename fp_type::template promote_type<B>::type one = 
-			(typename fp_type::template promote_type<B>::type)1 << 
-				(integral_promoter::limits::digits - 1); 
+		auto op = static_cast<base_type_trait::promotion_type>(x.value_) << (I - 1);
+		base_type_trait::promotion_type res = 0;
+		base_type_trait::promotion_type one = (base_type_trait::promotion_type)1 << 
+			(base_type_trait::promotion_limits::digits - 1); 
 
 		while (one > op)
 			one >>= 2;
@@ -1120,8 +1191,7 @@ template<
 	typename B,
 	unsigned char I,
 	unsigned char F,
-    typename TIntegralPromoter,
-    typename TNumericLimits>
+    typename TBaseTypeTrait>
 /// Stream input operator.
 //!
 //! A value is first input to type double and then the read value is converted
@@ -1132,7 +1202,7 @@ S & operator>>(
 	/// The input stream.
 	S & s, 
 	/// A reference to the value to be read.
-	fpml::fixed_point<B, I, F, TIntegralPromoter, TNumericLimits> & v)
+	fpml::fixed_point<B, I, F, TBaseTypeTrait> & v)
 {
     // TODO: Edit it.
 	double value=0.;
@@ -1149,8 +1219,7 @@ template<
 	typename B,
 	unsigned char I,
 	unsigned char F,
-    typename TIntegralPromoter,
-    typename TNumericLimits>
+    typename TBaseTypeTrait>
 /// Stream output operator.
 //!
 //! The fixed_point value is first converted to type double and then the output
@@ -1161,11 +1230,9 @@ S & operator<<(
 	/// The output stream.
 	S & s, 
 	/// A const reference to the value to be written.
-	fpml::fixed_point<B, I, F, TIntegralPromoter, TNumericLimits> const& v)
+	fpml::fixed_point<B, I, F, TBaseTypeTrait> const& v)
 {
-    // TODO: Edit it.
-	double value = v;
-	s << value;
+	s << v.toString();
 	return s;
 }
 
@@ -1186,14 +1253,13 @@ template<
 	typename B,
 	unsigned char I,
 	unsigned char F,
-    typename TIntegralPromoter,
-    typename TNumericLimits>
-class numeric_limits<fpml::fixed_point<B, I, F, TIntegralPromoter, TNumericLimits> >
+    typename TBaseTypeTrait>
+class numeric_limits<fpml::fixed_point<B, I, F, TBaseTypeTrait> >
 {
 public:
 	/// The fixed_point type. This numeric_limits specialization is specialized
 	/// for this type.
-	using fp_type = fpml::fixed_point<B, I, F, TIntegralPromoter, TNumericLimits>;
+	using fp_type = fpml::fixed_point<B, I, F, TBaseTypeTrait>;
 
 	/// Tests whether a type allows denormalized values.
 	//!
@@ -1279,7 +1345,7 @@ public:
 	//! The member stores true for a type that has a signed representation, 
 	//! which is the case for all fixed_point types with a signed base type.
 	//! Otherwise it stores false.
-	static const bool is_signed = fp_type::base_type_limits::is_signed;
+	static const bool is_signed = fp_type::base_type_trait::limits::is_signed;
 
 	/// Tests if a type has an explicit specialization defined in the template 
 	/// class numeric_limits.
@@ -1340,7 +1406,7 @@ public:
 	static fp_type (min)()
 	{
 		fp_type minimum;
-		minimum.value_ = (fp_type::base_type_limits::min)();
+		minimum.value_ = (fp_type::base_type_trait::limits::min)();
 		return minimum;
 	}
 
@@ -1350,7 +1416,7 @@ public:
 	static fp_type (max)()
 	{
 		fp_type maximum;
-		maximum.value_ = (fp_type::base_type_limits::max)();
+		maximum.value_ = (fp_type::base_type_trait::limits::max)();
 		return maximum;
 	}
 
