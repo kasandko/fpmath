@@ -52,6 +52,8 @@
 #include <type_traits>
 #include <utility>
 #include <string>
+#include <stdexcept>
+#include <cctype>
 #include <ex_type_traits/op_traits.h>
 
 namespace fpml {
@@ -141,20 +143,40 @@ struct default_integral_methods
             : result;
     }
 
-    TInteger from_str(const std::string & value)
+    TInteger from_str(const std::string & value, size_t * pos = nullptr)
     {
         if (value.empty())
-            return 0;
+            throw std::invalid_argument("from_str");
 
         TInteger result;
-        const bool is_neg = value[0] == '-';
+        const bool is_neg = false;
 
-        for (size_t i = is_neg ? 1u : 0u; i < value.size(); ++i)
+        bool started = false;
+        bool first_ch = true;
+        for (size_t i = 0u; i < value.size(); ++i)
         {
             std::string::value_type ch = value[i];
+            if (!started && std::isspace(ch))
+                continue;
+
+            started = true;
+
+            if (ch == '-' && first_ch)
+            {
+                is_neg = true;
+                first_ch = false;
+                continue;
+            }
+
+            first_ch = false;
+
             if (ch < '0' || ch > '9')
-                return 0;
+                break;
+
+            // TODO: Control overflow (std::out_of_range).
             result = result * 10u + TInteger(ch - '0');
+            if (pos != nullptr)
+                pos = i + 1u;
         }
 
         return result * (is_neg ? -1 : 1);
@@ -786,7 +808,7 @@ public:
 	//! /return The value converted to a bool.
 	operator bool() const
 	{
-		return static_cast<bool>value_;	
+		return static_cast<bool>(value_);	
 	}
 
     /// Convert to a base type.
@@ -810,21 +832,12 @@ public:
         return value_;
     }
 
+    /// Give fractional part as integral.
+    //!
+    //! /return The fractional part as base type.
     base_type fract()
     {
         return value_ & _INTEGER_MASK;
-    }
-
-    /// Convert to std::string.
-    //!
-    //! /return The value converted to a string.
-    std::string toString() const
-    {
-        std::string integer =
-            base_type_trait::methods::to_str(value_ >> F);
-        std::string fractional =
-            base_type_trait::methods::to_str(value_ & _INTEGER_MASK);
-        return integer + std::localeconv()->decimal_point + fractional;
     }
 
 	/// Convert to a float.
@@ -854,335 +867,506 @@ public:
 		return (long double)value_ / power2<F>::value;	
 	}
 
-	/**************************************************************************/
-	/*                                                                        */
-	/* fabs                                                                   */
-	/*                                                                        */
-	/**************************************************************************/
 
-	/// Calculates the absolute value.
-	//! 
-	//! The fabs function computes the absolute value of its argument.
-	//!
-	//! /return The absolute value of the argument.
-	friend fp_type fabs(
-		/// The argument to the function.
-		fp_type x)
-	{
-		return x < fp_type(0) ? -x : x;
-	}
-
-	/**************************************************************************/
-	/*                                                                        */
-	/* ceil                                                                   */
-	/*                                                                        */
-	/**************************************************************************/
-
-	/// Calculates the ceiling value.
-	//! 
-	//! The ceil function computes the smallest integral value not less than 
-	//! its argument.
-	//!
-	//! /return The smallest integral value not less than the argument.
-	friend fp_type ceil(
-		/// The argument to the function.
-		fp_type x)
-	{
-		fp_type result;
-		result.value_ = x.value_ & _INTEGER_MASK;
-		return result + fp_type(x.value_ & _FRACTIONAL_MASK ? 1 : 0);
-	}
-
-	/**************************************************************************/
-	/*                                                                        */
-	/* floor                                                                  */
-	/*                                                                        */
-	/**************************************************************************/
-
-	/// Calculates the floor.
-	//! 
-	//! The floor function computes the largest integral value not greater than 
-	//! its argument.
-	//!
-	//! /return The largest integral value not greater than the argument.
-	friend fp_type floor(
-		/// The argument to the function.
-		fp_type x)
-	{
-		fp_type result;
-		result.value_ = x.value_ & _INTEGER_MASK;
-		return result;
-	}
-
-	/**************************************************************************/
-	/*                                                                        */
-	/* fmod                                                                   */
-	/*                                                                        */
-	/**************************************************************************/
-
-	/// Calculates the remainder.
-	//! 
-	//! The fmod function computes the fixed point remainder of x/y.
-	//!
-	//! /return The fixed point remainder of x/y.
-	friend fp_type fmod(
-		/// The argument to the function.
-		fp_type x,
-		/// The argument to the function.
-		fp_type y)
-	{
-		fp_type result;
-		result.value_ = x.value_ % y.value_;
-		return result;
-	}
-
-	/**************************************************************************/
-	/*                                                                        */
-	/* modf                                                                   */
-	/*                                                                        */
-	/**************************************************************************/
-
-	/// Split in integer and fraction parts.
-	//! 
-	//! The modf function breaks the argument into integer and fraction parts,
-	//! each of which has the same sign as the argument. It stores the integer
-	//! part in the object pointed to by ptr.
-	//!
-	//! /return The signed fractional part of x/y.
-	friend fp_type modf(
-		/// The argument to the function.
-		fp_type x,
-		/// The pointer to the integer part.
-		fp_type * ptr)
-	{
-		fp_type integer;
-		integer.value_ = x.value_ & _INTEGER_MASK;
-		*ptr = x < fp_type(0) ? integer + fp_type(1) : integer;
-
-		fp_type fraction;
-		fraction.value_ = x.value_ & _FRACTIONAL_MASK;
-
-		return x < fp_type(0) ? -fraction : fraction;
-	}
-
-	/**************************************************************************/
-	/*                                                                        */
-	/* exp                                                                    */
-	/*                                                                        */
-	/**************************************************************************/
-
-	/// Calculates the exponential.
-	//! 
-	//! The function computes the exponential function of x. The algorithm uses
-	//! the identity e^(a+b) = e^a * e^b.
-	//!
-	//! /return The exponential of the argument.
-	friend fp_type exp(
-		/// The argument to the exp function.
-		fp_type x)
-	{
-        // TODO: Expand this table.
-		// a[x] = exp( (1/2) ^ x ), x: [0 ... 31]
-		fp_type a[] = {
-			1.64872127070012814684865078781, 
-			1.28402541668774148407342056806, 
-			1.13314845306682631682900722781, 
-			1.06449445891785942956339059464, 
-			1.03174340749910267093874781528, 
-			1.01574770858668574745853507208, 
-			1.00784309720644797769345355976, 
-			1.00391388933834757344360960390, 
-			1.00195503359100281204651889805, 
-			1.00097703949241653524284529261, 
-			1.00048840047869447312617362381, 
-			1.00024417042974785493700523392, 
-			1.00012207776338377107650351967, 
-			1.00006103701893304542177912060, 
-			1.00003051804379102429545128481, 
-			1.00001525890547841394814004262, 
-			1.00000762942363515447174318433, 
-			1.00000381470454159186605078771, 
-			1.00000190735045180306002872525, 
-			1.00000095367477115374544678825, 
-			1.00000047683727188998079165439, 
-			1.00000023841860752327418915867, 
-			1.00000011920929665620888994533, 
-			1.00000005960464655174749969329, 
-			1.00000002980232283178452676169,
-			1.00000001490116130486995926397,
-			1.00000000745058062467940380956,
-			1.00000000372529030540080797502,
-			1.00000000186264515096568050830,
-			1.00000000093132257504915938475,
-			1.00000000046566128741615947508 };
-
-		fp_type e(2.718281828459045);
-
-		fp_type y(1);
-		for (int32_t i=F-1; i>=0; --i)
-		{
-			if (!(x.value_ & B(1)<<i))
-				y *= a[F-i-1];
-		}
-
-		int x_int = (int)(floor(x));
-		if (x_int<0)
-		{
-			for (int i=1; i<=-x_int; ++i)
-				y /= e;
-		}
-		else
-		{
-			for (int i=1; i<=x_int; ++i)
-				y *= e;
-		}
-
-		return y;
-	}
-
-	/**************************************************************************/
-	/*                                                                        */
-	/* cos                                                                    */
-	/*                                                                        */
-	/**************************************************************************/
-
-	/// Calculates the cosine.
-	//! 
-	//! The algorithm uses a MacLaurin series expansion.
-	//!
-	//! First the argument is reduced to be within the range -Pi .. +Pi. Then
-	//! the MacLaurin series is expanded. The argument reduction is problematic 
-	//! since Pi cannot be represented exactly. The more rounds are reduced the
-	//! less significant is the argument (every reduction round makes a slight
-	//! error), to the extent that the reduced argument and consequently the 
-	//! result are meaningless.
-	//!
-	//! The argument reduction uses one division. The series expansion uses 3
-	//! additions and 4 multiplications.
-	//!
-	//! /return The cosine of the argument.
-	friend fp_type cos(
-		/// The argument to the cos function.
-		fp_type x)
-	{
-		fp_type x_ = 
-			fmod(x, fp_type(M_PI * 2));
-		if (x_ > fp_type(M_PI))
-			x_ -= fp_type(M_PI * 2);
-
-		fp_type xx = x_ * x_;
-
-		fp_type y = - xx * fp_type(1. / (2 * 3 * 4 * 5 * 6));
-		y += fp_type(1. / (2 * 3 * 4));
-		y *= xx;
-		y -= fp_type(1. / (2));
-		y *= xx;
-		y += fp_type(1);
-
-		return y;
-	}
-
-	/**************************************************************************/
-	/*                                                                        */
-	/* sin                                                                    */
-	/*                                                                        */
-	/**************************************************************************/
-
-	/// Calculates the sine.
-	//! 
-	//! The algorithm uses a MacLaurin series expansion.
-	//!
-	//! First the argument is reduced to be within the range -Pi .. +Pi. Then
-	//! the MacLaurin series is expanded. The argument reduction is problematic 
-	//! since Pi cannot be represented exactly. The more rounds are reduced the
-	//! less significant is the argument (every reduction round makes a slight
-	//! error), to the extent that the reduced argument and consequently the 
-	//! result are meaningless.
-	//!
-	//! The argument reduction uses one division. The series expansion uses 3
-	//! additions and 5 multiplications.
-	//!
-	//! /return The sine of the argument.
-	friend fp_type sin(
-		/// The argument to the sin function.
-		fp_type x)
-	{
-		fp_type x_ = fmod(x, fp_type(M_PI * 2));
-		if (x_ > fp_type(M_PI))
-			x_ -= fp_type(M_PI * 2);
-
-		fp_type xx = x_ * x_;
-
-		fp_type y = - xx * fp_type(1. / (2 * 3 * 4 * 5 * 6 * 7));
-		y += fp_type(1. / (2 * 3 * 4 * 5));
-		y *= xx;
-		y -= fp_type(1. / (2 * 3));
-		y *= xx;
-		y += fp_type(1);
-		y *= x_;
-
-		return y;
-	}
-
-	/**************************************************************************/
-	/*                                                                        */
-	/* sqrt                                                                   */
-	/*                                                                        */
-	/**************************************************************************/
-
-	/// Calculates the square root.
-	//! 
-	//! The sqrt function computes the nonnegative square root of its argument.
-	//! A domain error results if the argument is negative.
-	//!
-	//! Calculates an approximation of the square root using an integer 
-	//! algorithm. The algorithm is described in Wikipedia: 
-	//! http://en.wikipedia.org/wiki/Methods_of_computing_square_roots
-	//!
-	//! The algorithm seems to have originated in a book on programming abaci by 
-	//! Mr C. Woo.
-	//!
-	//! /return The square root of the argument. If the argument is negative, 
-	//! the function returns 0.
-	friend fp_type sqrt(
-		/// The argument to the square root function, a nonnegative fixed-point
-		/// value.
-		fp_type x)
-	{
-		if (x < fp_type(0))
-		{
-			errno = EDOM;
-			return 0;
-		}
-
-		auto op = static_cast<base_type_trait::promotion_type>(x.value_) << (I - 1);
-		base_type_trait::promotion_type res = 0;
-		base_type_trait::promotion_type one = (base_type_trait::promotion_type)1 << 
-			(base_type_trait::promotion_limits::digits - 1); 
-
-		while (one > op)
-			one >>= 2;
-
-		while (one != 0)
-		{
-			if (op >= res + one)
-			{
-				op = op - (res + one);
-				res = res + (one << 1);
-			}
-			res >>= 1;
-			one >>= 2;
-		}
-
-		fp_type root;
-		root.value_ = static_cast<B>(res);
-		return root;
-	}
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend fixed_point<B, I, F, TBaseTypeTrait> sqrt(
+        const fixed_point<B, I, F, TBaseTypeTrait> & x);
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend fixed_point<B, I, F, TBaseTypeTrait> sin(
+        const fixed_point<B, I, F, TBaseTypeTrait> & x);
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend fixed_point<B, I, F, TBaseTypeTrait> cos(
+        const fixed_point<B, I, F, TBaseTypeTrait> & x);
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend fixed_point<B, I, F, TBaseTypeTrait> exp(
+        const fixed_point<B, I, F, TBaseTypeTrait> & x);
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend fixed_point<B, I, F, TBaseTypeTrait> modf(
+        const fixed_point<B, I, F, TBaseTypeTrait> & x,
+        fixed_point<B, I, F, TBaseTypeTrait> * ptr);
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend fixed_point<B, I, F, TBaseTypeTrait> fmod(
+        const fixed_point<B, I, F, TBaseTypeTrait> & x,
+        const fixed_point<B, I, F, TBaseTypeTrait> & y);
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend fixed_point<B, I, F, TBaseTypeTrait> floor(
+        const fixed_point<B, I, F, TBaseTypeTrait> & x);
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend fixed_point<B, I, F, TBaseTypeTrait> ceil(
+        const fixed_point<B, I, F, TBaseTypeTrait> & x);
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend fixed_point<B, I, F, TBaseTypeTrait> fabs(
+        const fixed_point<B, I, F, TBaseTypeTrait> & x);
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend std::string ftos(
+        const fixed_point<B, I, F, TBaseTypeTrait> & v);
+    template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+    friend fixed_point<B, I, F, TBaseTypeTrait> stof(
+        const std::string & str, size_t * pos);
 
 private:
 	/// The value in fixed point format.
 	B value_;
 };
+
+
+/**************************************************************************/
+/*                                                                        */
+/* stof                                                                   */
+/*                                                                        */
+/**************************************************************************/
+
+/// Convert std::string to fixed_point.
+//!
+//! The behavior of this function is similar std::stof.
+//! See https://en.cppreference.com/w/cpp/string/basic_string/stof for
+//! more information.
+//!
+//! /return The value converted to a fixed_point.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> stof(
+    /// The string to convert.
+    const std::string & str,
+    /// Address of an integer to store the number of characters processed.
+    size_t * pos = nullptr)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+    using base_type_methods = fp_type::base_type_trait::methods;
+
+    fp_type result;
+    size_t ipos = std::string::npos;
+    B value;
+    try
+    {
+        value = base_type_methods.from_str(str, ipos);
+    }
+    catch (const std::invalid_argument &)
+    {
+        throw std::invalid_argument("stof");
+    }
+    catch (const std::out_of_range &)
+    {
+        throw std::out_of_range("stof");
+    }
+
+    // TODO: Control overflow.
+    result.value_ = value << F;
+    if (ipos >= str.size() || str[ipos] != '.')
+    {
+        if (pos)
+            pos = ipos;
+        return result;
+    }
+
+    ++ipos;
+
+    std::string fractional = str.substr(ipos);
+    ipos = std::string::npos;
+    try
+    {
+        value = base_type_methods.from_str(str, ipos);
+    }
+    catch (const std::invalid_argument &)
+    {
+        throw std::invalid_argument("stof");
+    }
+    catch (const std::out_of_range &)
+    {
+        throw std::out_of_range("stof");
+    }
+
+    // TODO: Control overflow.
+    result.value_ |= value;
+    if (pos)
+        pos = ipos;
+
+    return result;
+}
+
+
+/**************************************************************************/
+/*                                                                        */
+/* ftos                                                                   */
+/*                                                                        */
+/**************************************************************************/
+
+/// Convert fixed_point to std::string.
+//!
+//! /return The value converted to a string.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+std::string ftos(
+    /// The fixed point to convert.
+    const fixed_point<B, I, F, TBaseTypeTrait> & v)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+    using base_type_methods = fp_type::base_type_trait::methods;
+
+    std::string integer = base_type_methods::to_str(v.value_ >> F);
+    std::string fractional =
+        base_type_methods::to_str(v.value_ & fp_type::_INTEGER_MASK);
+    return integer + std::localeconv()->decimal_point + fractional;
+}
+
+
+/**************************************************************************/
+/*                                                                        */
+/* fabs                                                                   */
+/*                                                                        */
+/**************************************************************************/
+
+/// Calculates the absolute value.
+//! 
+//! The fabs function computes the absolute value of its argument.
+//!
+//! /return The absolute value of the argument.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> fabs(
+    /// The argument to the function.
+    const fixed_point<B, I, F, TBaseTypeTrait> & x)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+
+    return x < fp_type(0) ? -x : x;
+}
+
+
+/**************************************************************************/
+/*                                                                        */
+/* ceil                                                                   */
+/*                                                                        */
+/**************************************************************************/
+
+/// Calculates the ceiling value.
+//! 
+//! The ceil function computes the smallest integral value not less than 
+//! its argument.
+//!
+//! /return The smallest integral value not less than the argument.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> ceil(
+    /// The argument to the function.
+    const fixed_point<B, I, F, TBaseTypeTrait> & x)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+
+    fp_type result;
+    result.value_ = x.value_ & fp_type::_INTEGER_MASK;
+    return result + fp_type(x.value_ & fp_type::_FRACTIONAL_MASK ? 1 : 0);
+}
+
+
+/**************************************************************************/
+/*                                                                        */
+/* floor                                                                  */
+/*                                                                        */
+/**************************************************************************/
+
+/// Calculates the floor.
+//! 
+//! The floor function computes the largest integral value not greater than 
+//! its argument.
+//!
+//! /return The largest integral value not greater than the argument.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> floor(
+    /// The argument to the function.
+    const fixed_point<B, I, F, TBaseTypeTrait> & x)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+
+    fp_type result;
+    result.value_ = x.value_ & fp_type::_INTEGER_MASK;
+    return result;
+}
+
+
+/**************************************************************************/
+/*                                                                        */
+/* fmod                                                                   */
+/*                                                                        */
+/**************************************************************************/
+
+/// Calculates the remainder.
+//! 
+//! The fmod function computes the fixed point remainder of x/y.
+//!
+//! /return The fixed point remainder of x/y.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> fmod(
+    /// The argument to the function.
+    const fixed_point<B, I, F, TBaseTypeTrait> & x,
+    /// The argument to the function.
+    const fixed_point<B, I, F, TBaseTypeTrait> & y)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+
+    fp_type result;
+    result.value_ = x.value_ % y.value_;
+    return result;
+}
+
+
+/**************************************************************************/
+/*                                                                        */
+/* modf                                                                   */
+/*                                                                        */
+/**************************************************************************/
+
+/// Split in integer and fraction parts.
+//! 
+//! The modf function breaks the argument into integer and fraction parts,
+//! each of which has the same sign as the argument. It stores the integer
+//! part in the object pointed to by ptr.
+//!
+//! /return The signed fractional part of x/y.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> modf(
+    /// The argument to the function.
+    const fixed_point<B, I, F, TBaseTypeTrait> & x,
+    /// The pointer to the integer part.
+    fixed_point<B, I, F, TBaseTypeTrait> * ptr)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+
+    fp_type integer;
+    integer.value_ = x.value_ & fp_type::_INTEGER_MASK;
+    *ptr = x < fp_type(0) ? integer + fp_type(1) : integer;
+
+    fp_type fraction;
+    fraction.value_ = x.value_ & fp_type::_FRACTIONAL_MASK;
+
+    return x < fp_type(0) ? -fraction : fraction;
+}
+
+
+/**************************************************************************/
+/*                                                                        */
+/* exp                                                                    */
+/*                                                                        */
+/**************************************************************************/
+
+/// Calculates the exponential.
+//! 
+//! The function computes the exponential function of x. The algorithm uses
+//! the identity e^(a+b) = e^a * e^b.
+//!
+//! /return The exponential of the argument.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> exp(
+    /// The argument to the exp function.
+    const fixed_point<B, I, F, TBaseTypeTrait> & x)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+
+    // TODO: Expand this table.
+    // a[x] = exp( (1/2) ^ x ), x: [0 ... 31]
+    fp_type a[] = {
+        1.64872127070012814684865078781, 
+        1.28402541668774148407342056806, 
+        1.13314845306682631682900722781, 
+        1.06449445891785942956339059464, 
+        1.03174340749910267093874781528, 
+        1.01574770858668574745853507208, 
+        1.00784309720644797769345355976, 
+        1.00391388933834757344360960390, 
+        1.00195503359100281204651889805, 
+        1.00097703949241653524284529261, 
+        1.00048840047869447312617362381, 
+        1.00024417042974785493700523392, 
+        1.00012207776338377107650351967, 
+        1.00006103701893304542177912060, 
+        1.00003051804379102429545128481, 
+        1.00001525890547841394814004262, 
+        1.00000762942363515447174318433, 
+        1.00000381470454159186605078771, 
+        1.00000190735045180306002872525, 
+        1.00000095367477115374544678825, 
+        1.00000047683727188998079165439, 
+        1.00000023841860752327418915867, 
+        1.00000011920929665620888994533, 
+        1.00000005960464655174749969329, 
+        1.00000002980232283178452676169,
+        1.00000001490116130486995926397,
+        1.00000000745058062467940380956,
+        1.00000000372529030540080797502,
+        1.00000000186264515096568050830,
+        1.00000000093132257504915938475,
+        1.00000000046566128741615947508 };
+
+    fp_type e(2.718281828459045);
+
+    fp_type y(1);
+    for (int32_t i=F-1; i>=0; --i)
+    {
+        if (!(x.value_ & B(1)<<i))
+            y *= a[F-i-1];
+    }
+
+    int x_int = (int)(floor(x));
+    if (x_int<0)
+    {
+        for (int i=1; i<=-x_int; ++i)
+            y /= e;
+    }
+    else
+    {
+        for (int i=1; i<=x_int; ++i)
+            y *= e;
+    }
+
+    return y;
+}
+
+
+/**************************************************************************/
+/*                                                                        */
+/* sqrt                                                                   */
+/*                                                                        */
+/**************************************************************************/
+
+/// Calculates the square root.
+//! 
+//! The sqrt function computes the nonnegative square root of its argument.
+//! A domain error results if the argument is negative.
+//!
+//! Calculates an approximation of the square root using an integer 
+//! algorithm. The algorithm is described in Wikipedia: 
+//! http://en.wikipedia.org/wiki/Methods_of_computing_square_roots
+//!
+//! The algorithm seems to have originated in a book on programming abaci by 
+//! Mr C. Woo.
+//!
+//! /return The square root of the argument. If the argument is negative, 
+//! the function returns 0.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> sqrt(
+    /// The argument to the square root function, a nonnegative fixed-point
+    /// value.
+    const fixed_point<B, I, F, TBaseTypeTrait> & x)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+    using promotion_type = fp_type::base_type_trait::promotion_type;
+    using promotion_limits = fp_type::base_type_trait::promotion_limits;
+
+    if (x < fp_type(0))
+    {
+        errno = EDOM;
+        return 0;
+    }
+
+    auto op = static_cast<promotion_type>(x.value_) << (I - 1);
+    promotion_type res = 0;
+    promotion_type one = (promotion_type)1 << (promotion_limits::digits - 1); 
+
+    while (one > op)
+        one >>= 2;
+
+    while (one != 0)
+    {
+        if (op >= res + one)
+        {
+            op = op - (res + one);
+            res = res + (one << 1);
+        }
+        res >>= 1;
+        one >>= 2;
+    }
+
+    fp_type root;
+    root.value_ = static_cast<B>(res);
+    return root;
+}
+
+
+/**************************************************************************/
+/*                                                                        */
+/* sin                                                                    */
+/*                                                                        */
+/**************************************************************************/
+
+/// Calculates the sine.
+//! 
+//! The algorithm uses a MacLaurin series expansion.
+//!
+//! First the argument is reduced to be within the range -Pi .. +Pi. Then
+//! the MacLaurin series is expanded. The argument reduction is problematic 
+//! since Pi cannot be represented exactly. The more rounds are reduced the
+//! less significant is the argument (every reduction round makes a slight
+//! error), to the extent that the reduced argument and consequently the 
+//! result are meaningless.
+//!
+//! The argument reduction uses one division. The series expansion uses 3
+//! additions and 5 multiplications.
+//!
+//! /return The sine of the argument.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> sin(
+    /// The argument to the sin function.
+    const fixed_point<B, I, F, TBaseTypeTrait> & x)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+
+    fp_type x_ = fmod(x, fp_type(M_PI * 2));
+    if (x_ > fp_type(M_PI))
+        x_ -= fp_type(M_PI * 2);
+
+    fp_type xx = x_ * x_;
+
+    fp_type y = - xx * fp_type(1. / (2 * 3 * 4 * 5 * 6 * 7));
+    y += fp_type(1. / (2 * 3 * 4 * 5));
+    y *= xx;
+    y -= fp_type(1. / (2 * 3));
+    y *= xx;
+    y += fp_type(1);
+    y *= x_;
+
+    return y;
+}
+
+
+/**************************************************************************/
+/*                                                                        */
+/* cos                                                                    */
+/*                                                                        */
+/**************************************************************************/
+
+/// Calculates the cosine.
+//! 
+//! The algorithm uses a MacLaurin series expansion.
+//!
+//! First the argument is reduced to be within the range -Pi .. +Pi. Then
+//! the MacLaurin series is expanded. The argument reduction is problematic 
+//! since Pi cannot be represented exactly. The more rounds are reduced the
+//! less significant is the argument (every reduction round makes a slight
+//! error), to the extent that the reduced argument and consequently the 
+//! result are meaningless.
+//!
+//! The argument reduction uses one division. The series expansion uses 3
+//! additions and 4 multiplications.
+//!
+//! /return The cosine of the argument.
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> cos(
+    /// The argument to the cos function.
+    const fixed_point<B, I, F, TBaseTypeTrait> & x)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+
+    fp_type x_ = fmod(x, fp_type(M_PI * 2));
+    if (x_ > fp_type(M_PI))
+        x_ -= fp_type(M_PI * 2);
+
+    fp_type xx = x_ * x_;
+
+    fp_type y = - xx * fp_type(1. / (2 * 3 * 4 * 5 * 6));
+    y += fp_type(1. / (2 * 3 * 4));
+    y *= xx;
+    y -= fp_type(1. / (2));
+    y *= xx;
+    y += fp_type(1);
+
+    return y;
+}
 
 
 template<
@@ -1232,7 +1416,7 @@ S & operator<<(
 	/// A const reference to the value to be written.
 	fpml::fixed_point<B, I, F, TBaseTypeTrait> const& v)
 {
-	s << v.toString();
+	s << ftos(v);
 	return s;
 }
 
@@ -1249,11 +1433,7 @@ namespace std
 /*                                                                            */
 /******************************************************************************/
 
-template<
-	typename B,
-	unsigned char I,
-	unsigned char F,
-    typename TBaseTypeTrait>
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
 class numeric_limits<fpml::fixed_point<B, I, F, TBaseTypeTrait> >
 {
 public:
