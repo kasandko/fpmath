@@ -32,8 +32,6 @@
 /*******************************************************************************/
 
 
-#include <boost/test/unit_test.hpp>
-
 #include "../../include/fpml/fixed_point.h"
 
 BOOST_AUTO_TEST_SUITE( fixed_point_suite )

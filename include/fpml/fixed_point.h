@@ -424,6 +424,7 @@ public:
 	//! next integer.
 	fixed_point(
 		/// The value to convert.
+        // TODO: Edit it.
 		float value)
 		: value_((B)(value * power2<F>::value + (value >= 0 ? .5 : -.5)))
 	{ }
@@ -434,6 +435,7 @@ public:
 	//! this fixed_point type.
 	fixed_point(
 		/// The value to convert.
+        // TODO: Edit it.
 		double value)
 		: value_((B)(value * power2<F>::value + (value >= 0 ? .5 : -.5)))
 	{ }
@@ -444,6 +446,7 @@ public:
 	//! it to this fixed_point type.
 	fixed_point(
 		/// The value to convert.
+        // TODO: Edit it.
 		long double value)
 		: value_((B)(value * power2<F>::value + (value >= 0 ? .5 : -.5)))
 	{ }
@@ -811,6 +814,33 @@ public:
 		return static_cast<bool>(value_);	
 	}
 
+	/// Convert to a float.
+	//!
+	//! /return The value converted to a float.
+	operator float() const
+	{
+        // TODO: Needs improvement: composite integer cannot be assigned to float.
+		return (float)value_ / power2<F>::value;	
+	}
+
+	/// Convert to a double.
+	//!
+	//! /return The value converted to a double.
+	operator double() const
+	{
+        // TODO: Needs improvement: composite integer cannot be assigned to double.
+		return (double)value_ / power2<F>::value;	
+	}
+
+	/// Convert to a long double.
+	//!
+	//! /return The value converted to a long double.
+	operator long double() const
+	{
+        // TODO: Needs improvement: composite integer cannot be assigned to long double.
+		return (long double)value_ / power2<F>::value;	
+	}
+
     /// Convert to a base type.
 	//!
     //! Such as base type could be one of previously used
@@ -839,33 +869,6 @@ public:
     {
         return value_ & _INTEGER_MASK;
     }
-
-	/// Convert to a float.
-	//!
-	//! /return The value converted to a float.
-	operator float() const
-	{
-        // TODO: Needs improvement: composite integer cannot be assigned to float.
-		return (float)value_ / power2<F>::value;	
-	}
-
-	/// Convert to a double.
-	//!
-	//! /return The value converted to a double.
-	operator double() const
-	{
-        // TODO: Needs improvement: composite integer cannot be assigned to double.
-		return (double)value_ / power2<F>::value;	
-	}
-
-	/// Convert to a long double.
-	//!
-	//! /return The value converted to a long double.
-	operator long double() const
-	{
-        // TODO: Needs improvement: composite integer cannot be assigned to long double.
-		return (long double)value_ / power2<F>::value;	
-	}
 
 
     template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>

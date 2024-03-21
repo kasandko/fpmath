@@ -1,0 +1,19 @@
+#pragma once
+
+bool test_comparison();
+bool test_equality();
+bool test_unary_minus();
+bool test_prefix_increment();
+bool test_prefix_decrement();
+bool test_postfix_increment();
+bool test_postfix_decrement();
+bool test_add();
+bool test_subtract();
+bool test_add_assign();
+bool test_subtract_assign();
+bool test_multiply();
+bool test_divide();
+bool test_multiply_assign();
+bool test_divide_assign();
+bool test_lshift();
+bool test_rshift();

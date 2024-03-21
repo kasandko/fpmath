@@ -31,29 +31,28 @@
 #                                                                              #
 ################################################################################
 
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.5.1)
 project (unit_test)
 
-set ( Boost_USE_STATIC_LIBS ON )
-find_package( 
-	Boost REQUIRED 
-	COMPONENTS 
-		unit_test_framework )
-		
-if ( Boost_FOUND )
-   
-   include_directories( ${Boost_INCLUDE_DIRS} )
-   link_directories( ${Boost_INCLUDE_DIRS}/stage/lib )
-      
-else ( Boost_FOUND )
+set (TESTS
+    test_operators.h
+    test_operators.cpp
+    base_tests.h
+    base_tests.cpp
+    math_functions_tests.h
+    math_functions_tests.cpp
+    casts_tests.h
+    casts_tests.cpp
+    other_tests.h
+    other_tests.cpp
+    )
 
-   message( fatal_error "Boost not found. Cannot continue." )
-	    
-endif( Boost_FOUND )
+set (SOURCES
+    ${TESTS}
+    main.cpp
+    tests.h
+    tests.cpp
+    )
 
-SET(source_files
-	fixed_point.cpp 
-	)
-
-source_group("Source Files" FILES ${source_files})
-add_executable(unit_test runner.cpp ${source_files} )
+source_group ("tests" FILES ${TESTS})
+add_executable (unit_test runner.cpp ${SOURCES} )
