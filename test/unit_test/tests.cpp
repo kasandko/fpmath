@@ -17,6 +17,21 @@ bool thAssert(bool v, const std::string & msg, const std::string & additional_ms
     return v;
 }
 
+bool thAssertTrueFalse(bool v, bool desired, const std::string & msg,
+    const std::string & additional_msg, uint32_t line)
+{
+    if (v != desired)
+    {
+        std::cout << "  Assert " << (desired ? "True '" : "False '") << msg;
+        if (!additional_msg.empty())
+            std::cout << "': '" << additional_msg;
+
+        std::cout << "', Line: " << line << "." << std::endl;
+    }
+
+    return v == desired;
+}
+
 bool thAssertF(float a, float b, const std::string & msg, const std::string & additional_msg, uint32_t line)
 {
     return thAssert(
