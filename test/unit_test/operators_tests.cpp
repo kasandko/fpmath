@@ -176,6 +176,12 @@ bool test_equality()
     TH_ASSERT_TRUE(fp01 != fp21, "");
     TH_ASSERT_TRUE(fp01 != fp22, "");
 
+    TH_ASSERT_FALSE(fp01 != fp02, "");
+    TH_ASSERT_FALSE(fp01 == fp11, "");
+    TH_ASSERT_FALSE(fp01 == fp12, "");
+    TH_ASSERT_FALSE(fp01 == fp21, "");
+    TH_ASSERT_FALSE(fp01 == fp22, "");
+
     // Two integral pos numbers.
     TH_ASSERT_TRUE(fp12 == fp14, "");
 

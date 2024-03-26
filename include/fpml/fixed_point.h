@@ -54,6 +54,8 @@
 #include <string>
 #include <stdexcept>
 #include <cctype>
+#include <istream>
+#include <ostream>
 #include <ex_type_traits/op_traits.h>
 
 namespace fpml {
@@ -116,70 +118,106 @@ public:
 };
 
 template <typename TInteger>
-struct default_integral_methods
+struct integral_methods_base
 {
-    std::string to_str(const TInteger & value)
+    using base_type = TInteger;
+
+    struct integral_parts
     {
-        TInteger value_(value);
-        std::string result;
-        const bool is_neg = value_ < 0;
+        integral_parts() = default;
+        integral_parts(const integral_parts &) = default;
+        integral_parts& operator=(const integral_parts&) = default;
 
-        if (is_neg)
-            value_ = -value_;
-
-        while (true)
-        {
-            auto remainder =
-                static_cast<std::string::value_type>(value_ % 10u);
-            value_ /= 10u;
-            remainder += std::string::value_type('0');
-            result = remainder + result;
-            if (value_ == 0)
-                break;
-        }
-
-        return is_neg
-            ? std::string("-") + result
-            : result;
+        base_type integer;
+        base_type fractinal;
     }
 
-    TInteger from_str(const std::string & value, size_t * pos = nullptr)
+    template <typename TStream>
+    struct is_valid_istream
     {
-        if (value.empty())
-            throw std::invalid_argument("from_str");
+        static inline constexpr bool value =
+            std::is_base_of_v<std::istream, TStream> ||
+            std::is_base_of_v<std::wistream, TStream>;
+    };
 
-        TInteger result;
-        const bool is_neg = false;
+    template <typename TStream>
+    struct is_valid_ostream
+    {
+        static inline constexpr bool value =
+            std::is_base_of_v<std::ostream, TStream> ||
+            std::is_base_of_v<std::wostream, TStream>;
+    };
+};
 
-        bool started = false;
-        bool first_ch = true;
-        for (size_t i = 0u; i < value.size(); ++i)
-        {
-            std::string::value_type ch = value[i];
-            if (!started && std::isspace(ch))
-                continue;
+template <typename TInteger>
+struct default_integral_methods
+    : public integral_methods_base<TInteger>
+{
+    double to_double_(const integral_parts & parts, uint8_t f_bits_count)
+    {
+        return static_cast<double>(parts.integer) +
+            static_cast<double>(parts.fractinal) / (1ull << f_bits_count);
+    }
 
-            started = true;
+    void from_double_(double v, integral_parts & parts, uint8_t f_bits_count)
+    {
+        static const base_type base = static_cast<base_type>(1u) << f_bits_count;
+        const auto integral_value = static_cast<base_type>(
+            v * base + (value >= 0 ? .5 : -.5));
 
-            if (ch == '-' && first_ch)
-            {
-                is_neg = true;
-                first_ch = false;
-                continue;
-            }
+        static const base_type f_mask = base - 1u;
+        static const base_type i_mask = ~f_mask;
+        parts.integer = (i_mask & integral_value) >> f_bits_count;
+        parts.fractional = f_mask & integral_value;
+    }
 
-            first_ch = false;
+    std::string to_str(const integral_parts & parts, uint8_t f_bits_count)
+    {
+        return std::to_string(to_double_(parts, f_bits_count));
+    }
 
-            if (ch < '0' || ch > '9')
-                break;
+    integral_parts from_str(const std::string & str, uint8_t f_bits_count, size_t * pos = nullptr)
+    {
+        const double v = std::stod(str, pos);
 
-            // TODO: Control overflow (std::out_of_range).
-            result = result * 10u + TInteger(ch - '0');
-            if (pos != nullptr)
-                pos = i + 1u;
-        }
+        integral_parts parts;
+        from_double_(v, parts, f_bits_count)
+        return parts;
+    }
 
-        return result * (is_neg ? -1 : 1);
+    std::wstring to_wstr(const integral_parts & parts, uint8_t f_bits_count)
+    {
+        return std::to_wstring(to_double_(parts, f_bits_count));
+    }
+
+    integral_parts from_wstr(const std::wstring & str, uint8_t f_bits_count, size_t * pos = nullptr)
+    {
+        const double v = std::stod(str, pos);
+
+        integral_parts parts;
+        from_double_(v, parts, f_bits_count)
+        return parts;
+    }
+
+    template <typename TIStream>
+    integral_parts from_istream(TIStream & istream, uint8_t f_bits_count)
+    {
+        static_assert(is_valid_istream<TIStream>::value);
+
+        const double v;
+        istream >> v;
+
+        integral_parts parts;
+        from_double_(v, parts, f_bits_count)
+        return parts;
+    }
+
+    template <typename TOStream>
+    void to_ostream(TOStream & ostream, const integral_parts & parts, uint8_t f_bits_count)
+    {
+        static_assert(is_valid_ostream<TIStream>::value);
+
+        ostream << to_double_(parts, f_bits_count);
     }
 };
 
@@ -196,7 +234,6 @@ struct default_base_type_trait
     /// Integral type promoter for multiplication and division.
     using promotion_type = default_integral_promoter<T>::type;
     using promotion_limits = default_integral_promoter<T>::limits;
-    using promotion_methods = default_integral_methods<promotion_type>;
 };
 
 // - swapable
@@ -286,16 +323,31 @@ class fixed_point
 {
     using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
 
+public:
+
+    /// The base type of this fixed_point class.
+	using base_type = B;
+
+    using base_type_trait = TBaseTypeTrait;
+
+    /// The integer part bit count.
+	static const unsigned char integer_bit_count = I; 
+
+	/// The fractional part bit count.
+	static const unsigned char fractional_bit_count = F;
+
+private:
+
 	// Only integer types qualify for base type. If this line triggers an error,
 	// the base type is not an integer type. Note: char does not qualify as an
 	// integer because of its uncertainty in definition. Use signed char or
 	// unsigned char to be explicit.
-    static_assert(is_valid_base_type_v<B, TBaseTypeTrait::promotion_type>, "Invalid base type.");
+    static_assert(is_valid_base_type_v<base_type, TBaseTypeTrait::promotion_type>, "Invalid base type.");
 
 	// Make sure that the bit counts are ok. If this line triggers an error, the
 	// sum of the bit counts for the fractional and integer parts do not match 
 	// the bit count provided by the base type. The sign bit does not count.
-    static_assert(I + F == sizeof (B) * CHAR_BIT);
+    static_assert(integer_bit_count + fractional_bit_count == sizeof (base_type) * CHAR_BIT);
 
 	/// Grant the fixed_point template access to private members. Types with
 	/// different template parameters are different types and without this
@@ -362,17 +414,21 @@ class fixed_point
     static const B _FRACTIONAL_MASK = (B(1) << F) - 1;
     static const B _INTEGER_MASK = ~_FRACTIONAL_MASK;
 
+    fixed_point(
+        const base_type_trait::methods::integral_parts value)
+        : value_(value.integer << fractional_bit_count + value.fractional)
+    { }
+
+    base_type_trait::methods::integral_parts to_integral_parts() const
+    {
+        base_type_trait::methods::integral_parts parts;
+        parts.integer = (value_ & _INTEGER_MASK) >> fractional_bit_count;
+        parts.fractional = value & _FRACTIONAL_MASK;
+
+        return parts;
+    }
+
 public:
-	/// The base type of this fixed_point class.
-	using base_type = B;
-
-    using base_type_trait = TBaseTypeTrait;
-
-	/// The integer part bit count.
-	static const unsigned char integer_bit_count = I; 
-
-	/// The fractional part bit count.
-	static const unsigned char fractional_bit_count = F;
 
     static fp_type create_with_raw(const base_type & value)
     {
@@ -915,7 +971,7 @@ private:
 
 /**************************************************************************/
 /*                                                                        */
-/* stof                                                                   */
+/* stofp                                                                  */
 /*                                                                        */
 /**************************************************************************/
 
@@ -936,12 +992,11 @@ fixed_point<B, I, F, TBaseTypeTrait> stof(
     using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
     using base_type_methods = fp_type::base_type_trait::methods;
 
-    fp_type result;
-    size_t ipos = std::string::npos;
-    B value;
     try
     {
-        value = base_type_methods.from_str(str, ipos);
+        const base_type_methods::integral_parts parts =
+            base_type_methods::from_str(str, F, pos);
+        return fp_type(parts);
     }
     catch (const std::invalid_argument &)
     {
@@ -951,23 +1006,23 @@ fixed_point<B, I, F, TBaseTypeTrait> stof(
     {
         throw std::out_of_range("stof");
     }
+}
 
-    // TODO: Control overflow.
-    result.value_ = value << F;
-    if (ipos >= str.size() || str[ipos] != '.')
-    {
-        if (pos)
-            pos = ipos;
-        return result;
-    }
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+fixed_point<B, I, F, TBaseTypeTrait> stofp(
+    /// The string to convert.
+    const std::wstring & str,
+    /// Address of an integer to store the number of characters processed.
+    size_t * pos = nullptr)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+    using base_type_methods = fp_type::base_type_trait::methods;
 
-    ++ipos;
-
-    std::string fractional = str.substr(ipos);
-    ipos = std::string::npos;
     try
     {
-        value = base_type_methods.from_str(str, ipos);
+        const base_type_methods::integral_parts parts =
+            base_type_methods::from_wstr(str, F, pos);
+        return fp_type(parts);
     }
     catch (const std::invalid_argument &)
     {
@@ -977,19 +1032,12 @@ fixed_point<B, I, F, TBaseTypeTrait> stof(
     {
         throw std::out_of_range("stof");
     }
-
-    // TODO: Control overflow.
-    result.value_ |= value;
-    if (pos)
-        pos = ipos;
-
-    return result;
 }
 
 
 /**************************************************************************/
 /*                                                                        */
-/* ftos                                                                   */
+/* fptos, fptows                                                          */
 /*                                                                        */
 /**************************************************************************/
 
@@ -997,17 +1045,27 @@ fixed_point<B, I, F, TBaseTypeTrait> stof(
 //!
 //! /return The value converted to a string.
 template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
-std::string ftos(
+std::string fptos(
     /// The fixed point to convert.
     const fixed_point<B, I, F, TBaseTypeTrait> & v)
 {
     using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
     using base_type_methods = fp_type::base_type_trait::methods;
 
-    std::string integer = base_type_methods::to_str(v.value_ >> F);
-    std::string fractional =
-        base_type_methods::to_str(v.value_ & fp_type::_INTEGER_MASK);
-    return integer + std::localeconv()->decimal_point + fractional;
+    const base_type_methods::integral_parts parts = v.to_integral_parts();
+    return base_type_methods::to_str(parts, F);
+}
+
+template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
+std::wstring fptows(
+    /// The fixed point to convert.
+    const fixed_point<B, I, F, TBaseTypeTrait> & v)
+{
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+    using base_type_methods = fp_type::base_type_trait::methods;
+
+    const base_type_methods::integral_parts parts = v.to_integral_parts();
+    return base_type_methods::to_wstr(parts, F);
 }
 
 
@@ -1391,12 +1449,15 @@ S & operator>>(
 	/// A reference to the value to be read.
 	fpml::fixed_point<B, I, F, TBaseTypeTrait> & v)
 {
-    // TODO: Edit it.
-	double value=0.;
-	s >> value;
-	if (s)
-		v = value;
-	return s;
+    using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+    using base_type_methods = fp_type::base_type_trait::methods;
+
+    const base_type_methods::integral_parts parts =
+        base_type_methods::from_istream(s, F);
+
+    v = fp_type(parts);
+
+    return s;
 }
 
 
@@ -1419,7 +1480,12 @@ S & operator<<(
 	/// A const reference to the value to be written.
 	fpml::fixed_point<B, I, F, TBaseTypeTrait> const& v)
 {
-	s << ftos(v);
+	using fp_type = fixed_point<B, I, F, TBaseTypeTrait>;
+    using base_type_methods = fp_type::base_type_trait::methods;
+
+    const base_type_methods::integral_parts parts = v.to_integral_parts();
+    base_type_methods::to_ostream(s, parts, F);
+
 	return s;
 }
 
