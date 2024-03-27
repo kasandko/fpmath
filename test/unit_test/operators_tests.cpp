@@ -128,24 +128,24 @@ bool test_comparison()
     TH_ASSERT_FALSE(fp21 >= fp22, "");
 
     // Authors tests.
-    fpml::fixed_point<int, 16> fp0(0);
-	fpml::fixed_point<int, 16> fp1((signed char)-128);
-	fpml::fixed_point<int, 16> fp2((unsigned char)127);
-	fpml::fixed_point<int, 16> fp3((signed short)-32768);
-	fpml::fixed_point<int, 16> fp4((unsigned short)32767);
-	fpml::fixed_point<int, 16> fp5((signed int)-32768);
-	fpml::fixed_point<int, 16> fp6((unsigned int)32767);
-	fpml::fixed_point<int, 16> fp7((float)-1.5);
-	fpml::fixed_point<int, 16> fp8((float)1.5);
-	fpml::fixed_point<int, 16> fp9((double)-1.5);
-	fpml::fixed_point<int, 16> fp10((double)1.5);
-	fpml::fixed_point<int, 16> fp11((long double)-1.5);
-	fpml::fixed_point<int, 16> fp12((long double)1.5);
+    fpml::fixed_point<int, 16> a_fp0(0);
+	fpml::fixed_point<int, 16> a_fp1((signed char)-128);
+	fpml::fixed_point<int, 16> a_fp2((unsigned char)127);
+	fpml::fixed_point<int, 16> a_fp3((signed short)-32768);
+	fpml::fixed_point<int, 16> a_fp4((unsigned short)32767);
+	fpml::fixed_point<int, 16> a_fp5((signed int)-32768);
+	fpml::fixed_point<int, 16> a_fp6((unsigned int)32767);
+	fpml::fixed_point<int, 16> a_fp7((float)-1.5);
+	fpml::fixed_point<int, 16> a_fp8((float)1.5);
+	fpml::fixed_point<int, 16> a_fp9((double)-1.5);
+	fpml::fixed_point<int, 16> a_fp10((double)1.5);
+	fpml::fixed_point<int, 16> a_fp11((long double)-1.5);
+	fpml::fixed_point<int, 16> a_fp12((long double)1.5);
 
-	TH_ASSERT_TRUE(fp1 < fp2, "");
-	TH_ASSERT_TRUE(fp2 > fp1, "");
-	TH_ASSERT_FALSE(fp4 < fp3, "");
-	TH_ASSERT_FALSE(fp3 > fp4, "");
+	TH_ASSERT_TRUE(a_fp1 < a_fp2, "");
+	TH_ASSERT_TRUE(a_fp2 > a_fp1, "");
+	TH_ASSERT_FALSE(a_fp4 < a_fp3, "");
+	TH_ASSERT_FALSE(a_fp3 > a_fp4, "");
 
     return true;
 }

@@ -39,6 +39,7 @@ set (FPML_VERSION_MINOR 2)
 set (FPML_NAME "Fixed Point Math Library")
 
 include_directories("${PROJECT_SOURCE_DIR}/include")
+include_directories("${PROJECT_SOURCE_DIR}/ext/ex_type_traits/include")
 
 add_subdirectory(ext/ex_type_traits)
 add_subdirectory(test)

@@ -32,8 +32,8 @@
 /*******************************************************************************/
 
 
-#include "../../include/fpml/fixed_point.h"
-#include "intrin.h"
+#include <fpml/fixed_point.h>
+#include "intrin_.h"
 #include <iostream>
 
 /******************************************************************************/
@@ -57,8 +57,8 @@
 //! the relative performance of an algorithm in some measurement such as
 //! clocks per pixel.
 //!
-//! \return The number of clocks since the processor was powered up. The 
-//! result is returned in a 32 bit unsigned integer. It can count up to 
+//! \return The number of clocks since the processor was powered up. The
+//! result is returned in a 32 bit unsigned integer. It can count up to
 //! 4294967296 counts, which - on a 3 MHz CPU - translates to 1.3 seconds
 //! before it wraps.
 //!
@@ -75,7 +75,7 @@ inline unsigned int cpu_clocks_32()
 	//	}
 	// the return statement can be omitted, since the data is already in eax
 
-	return (unsigned int)__rdtsc();
+	return (unsigned int) __rdtsc();
 }
 
 

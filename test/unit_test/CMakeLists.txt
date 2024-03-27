@@ -34,9 +34,16 @@
 cmake_minimum_required (VERSION 3.5.1)
 project (unit_test)
 
+#include_directories("${PROJECT_SOURCE_DIR}")
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set (TESTS
-    test_operators.h
-    test_operators.cpp
+    operators_tests.h
+    operators_tests.cpp
     base_tests.h
     base_tests.cpp
     math_functions_tests.h
@@ -55,4 +62,4 @@ set (SOURCES
     )
 
 source_group ("tests" FILES ${TESTS})
-add_executable (unit_test runner.cpp ${SOURCES} )
+add_executable (unit_test ${SOURCES} )

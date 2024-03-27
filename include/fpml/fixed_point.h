@@ -58,6 +58,11 @@
 #include <ostream>
 #include <ex_type_traits/op_traits.h>
 
+// Some libs don't declare math constants after define _USE_MATH_DEFINES.
+#ifndef M_PI
+    #define M_PI       3.14159265358979323846
+#endif
+
 namespace fpml {
 
 /******************************************************************************/
@@ -66,19 +71,19 @@ namespace fpml {
 /*                                                                            */
 /******************************************************************************/
 
-/// Multiplication and division of fixed_point numbers need type 
+/// Multiplication and division of fixed_point numbers need type
 /// promotion. This is default integral promoter for standard integral
 /// types.
 //!
 //! When two 8 bit numbers are multiplied, a 16 bit result is produced.
 //! When two 16 bit numbers are multiplied, a 32 bit result is produced.
 //! When two 32 bit numbers are multiplied, a 64 bit result is produced.
-//! Since the fixed_point class internally relies on integer 
+//! Since the fixed_point class internally relies on integer
 //! multiplication, we need type promotion. After the multiplication we
 //! need to adjust the position of the decimal point by shifting the
-//! temporary result to the right an appropriate number of bits. 
+//! temporary result to the right an appropriate number of bits.
 //! However, if the temporary multiplication result is not kept in a big
-//! enough variable, overflow errors will occur and lead to wrong 
+//! enough variable, overflow errors will occur and lead to wrong
 //! results. A similar promotion needs to be done to the divisor in the
 //! case of division, but here the divisor needs to be shifted to the
 //! left an appropriate number of bits.
@@ -105,15 +110,15 @@ private:
 		#endif // #ifdef _MSC_VER
 	};
 
-    template<typename U> struct promote_type<int8_t, U> { using type = int16_t; }
-    template<typename U> struct promote_type<uint8_t, U> { using type = uint16_t; }
-    template<typename U> struct promote_type<int16_t, U> { using type = int32_t; }
-    template<typename U> struct promote_type<uint16_t, U> { using type = uint32_t; }
-    template<typename U> struct promote_type<int32_t, U> { using type = int64_t; }
-    template<typename U> struct promote_type<uint32_t, U> { using type = uint64_t; }
+    template<typename U> struct promote_type<int8_t, U> { using type = int16_t; };
+    template<typename U> struct promote_type<uint8_t, U> { using type = uint16_t; };
+    template<typename U> struct promote_type<int16_t, U> { using type = int32_t; };
+    template<typename U> struct promote_type<uint16_t, U> { using type = uint32_t; };
+    template<typename U> struct promote_type<int32_t, U> { using type = int64_t; };
+    template<typename U> struct promote_type<uint32_t, U> { using type = uint64_t; };
 
 public:
-    using type = promote_type<T>::type;
+    using type = typename promote_type<T>::type;
     using limits = std::numeric_limits<type>;
 };
 
@@ -130,7 +135,7 @@ struct integral_methods_base
 
         base_type integer;
         base_type fractinal;
-    }
+    };
 
     template <typename TStream>
     struct is_valid_istream
@@ -232,8 +237,8 @@ struct default_base_type_trait
     using methods = default_integral_methods<T>;
 
     /// Integral type promoter for multiplication and division.
-    using promotion_type = default_integral_promoter<T>::type;
-    using promotion_limits = default_integral_promoter<T>::limits;
+    using promotion_type = typename default_integral_promoter<T>::type;
+    using promotion_limits = typename default_integral_promoter<T>::limits;
 };
 
 // - swapable
@@ -248,8 +253,8 @@ inline constexpr bool is_valid_base_type_v =
     std::is_copy_constructible_v<B> &&
     exttr::op::is_a_rshiftable_v<B, size_t> &&
     exttr::op::is_a_lshiftable_v<B, size_t> &&
-    exttr::op::is_b_rshiftable_v<TPromotion, size_t> &&
-    exttr::op::is_b_lshiftable_v<TPromotion, size_t> &&
+    exttr::op::is_b_rshiftable_v<TPromotion, TPromotion, size_t> &&
+    exttr::op::is_b_lshiftable_v<TPromotion, TPromotion, size_t> &&
     exttr::op::is_comparable_v<B, B> &&
     exttr::op::is_comparable_v<B, int> &&
     exttr::op::is_negativable_v<B, B> &&
@@ -260,17 +265,17 @@ inline constexpr bool is_valid_base_type_v =
     ;
 
 template<
-	/// The base type. Must be an integer type. 
+	/// The base type. Must be an integer type.
 	//!
-	//! If this is a signed type, the fixed_point number will behave signed too, 
-	//! if this is an unsigned type, the fixed_point number will behave 
+	//! If this is a signed type, the fixed_point number will behave signed too,
+	//! if this is an unsigned type, the fixed_point number will behave
 	//! unsigned.
 	typename B,
 	/// The integer part bit count.
 	uint8_t I,
 	/// The fractional part bit count.
 	uint8_t F = sizeof (B) * CHAR_BIT - I, // std::numeric_limits<B>::digits - I
-    
+
     typename TBaseTypeTrait = default_base_type_trait<B>
 >
 /// A fixed point type.
@@ -284,7 +289,7 @@ template<
 //! The value uses 0/1 bits for the sign, I bits for the integer part and F bits
 //! for the fractional part.
 //!
-//! Here is an example: a signed 8 bit 5:2 fixed_point type would have the 
+//! Here is an example: a signed 8 bit 5:2 fixed_point type would have the
 //! following layout:
 //!
 //! fixed_point<signed char, 5, 2>
@@ -296,13 +301,13 @@ template<
 //! +----+----+----+----+----+----+----+----+
 //!
 //! where S is the sign-bit, I0 to I4 is the integer part, and F0 to F1 is
-//! the fractional part. The range of this type is from -32 to +31.75, the 
+//! the fractional part. The range of this type is from -32 to +31.75, the
 //! fractional part can encode multiples of 0.25.
 //!
 //! The class only implements a few operators directly, the others are generated
 //! via the ordered_field_operators, unit_steppable and shiftable templates.
 //!
-//! The ordered_field_operators template takes and generates (==>) the 
+//! The ordered_field_operators template takes and generates (==>) the
 //! following operators:
 //! +=   ==>  + (addable),
 //! -=   ==>  - (subtractable),
@@ -311,7 +316,7 @@ template<
 //! <    ==>  > , >=, <= (less_than_comparable),
 //! ==   ==>  != (equality_comparable).
 //!
-//! The unit_steppable template takes and generates (==>) the following 
+//! The unit_steppable template takes and generates (==>) the following
 //! operators:
 //! ++   ==>  ++(int), preincrement versus postincrement, (incrementable),
 //! --   ==>  --(int), predecrement versus postdecrement, (decrementable).
@@ -331,7 +336,7 @@ public:
     using base_type_trait = TBaseTypeTrait;
 
     /// The integer part bit count.
-	static const unsigned char integer_bit_count = I; 
+	static const unsigned char integer_bit_count = I;
 
 	/// The fractional part bit count.
 	static const unsigned char fractional_bit_count = F;
@@ -345,7 +350,7 @@ private:
     static_assert(is_valid_base_type_v<base_type, TBaseTypeTrait::promotion_type>, "Invalid base type.");
 
 	// Make sure that the bit counts are ok. If this line triggers an error, the
-	// sum of the bit counts for the fractional and integer parts do not match 
+	// sum of the bit counts for the fractional and integer parts do not match
 	// the bit count provided by the base type. The sign bit does not count.
     static_assert(integer_bit_count + fractional_bit_count == sizeof (base_type) * CHAR_BIT);
 
@@ -354,7 +359,7 @@ private:
 	/// declaration they do not have access to private members.
 	friend class fpml::fixed_point;
 
-	/// Grant the numeric_limits specialization for this fixed_point class 
+	/// Grant the numeric_limits specialization for this fixed_point class
 	/// access to private members.
 	friend class std::numeric_limits<fp_type>;
 
@@ -367,7 +372,7 @@ private:
 	//!
 	//! The fixed_point class needs 2 to the power of P in several locations in
 	//! the code. However, the value depends on compile time constants only and
-	//! can therefore be calculated at compile time using this template 
+	//! can therefore be calculated at compile time using this template
 	//! trickery. There is no need to call the function pow(2., P) at runtime to
 	//! calculate this value.
 	//!
@@ -386,7 +391,7 @@ private:
 	//!
 	//! The fixed_point class needs 2 to the power of P in several locations in
 	//! the code. However, the value depends on compile time constants only and
-	//! can therefore be calculated at compile time using this template 
+	//! can therefore be calculated at compile time using this template
 	//! trickery. There is no need to call the function pow(2., P) at runtime to
 	//! calculate this value.
 	//!
@@ -414,14 +419,16 @@ private:
     static const B _FRACTIONAL_MASK = (B(1) << F) - 1;
     static const B _INTEGER_MASK = ~_FRACTIONAL_MASK;
 
+    using integral_parts_ = typename base_type_trait::methods::integral_parts;
+
     fixed_point(
-        const base_type_trait::methods::integral_parts value)
+        const integral_parts_ value)
         : value_(value.integer << fractional_bit_count + value.fractional)
     { }
 
-    base_type_trait::methods::integral_parts to_integral_parts() const
+    integral_parts_ to_integral_parts() const
     {
-        base_type_trait::methods::integral_parts parts;
+        integral_parts_ parts;
         parts.integer = (value_ & _INTEGER_MASK) >> fractional_bit_count;
         parts.fractional = value & _FRACTIONAL_MASK;
 
@@ -450,20 +457,20 @@ public:
 		typename T>
 	/// Converting constructor.
 	//!
-	//! This constructor takes a numeric value of type T and converts it to 
+	//! This constructor takes a numeric value of type T and converts it to
 	//! this fixed_point type.
 	fixed_point(
 		/// The value to convert.
 		T value)
 		: value_((B)value << F)
-	{ 
+	{
         // TODO: Need assert.
 		//BOOST_CONCEPT_ASSERT((boost::Integer<T>));
 	}
 
 	/// Converting constructor.
 	//!
-	//! This constructor takes a numeric value of type bool and converts it to 
+	//! This constructor takes a numeric value of type bool and converts it to
 	//! this fixed_point type.
 	fixed_point(
 		/// The value to convert.
@@ -473,10 +480,10 @@ public:
 
 	/// Converting constructor.
 	//!
-	//! This constructor takes a numeric value of type float and converts it to 
+	//! This constructor takes a numeric value of type float and converts it to
 	//! this fixed_point type.
 	//!
-	//! The conversion is done by multiplication with 2^F and rounding to the 
+	//! The conversion is done by multiplication with 2^F and rounding to the
 	//! next integer.
 	fixed_point(
 		/// The value to convert.
@@ -487,7 +494,7 @@ public:
 
 	/// Converting constructor.
 	//!
-	//! This constructor takes a numeric value of type double and converts it to 
+	//! This constructor takes a numeric value of type double and converts it to
 	//! this fixed_point type.
 	fixed_point(
 		/// The value to convert.
@@ -498,7 +505,7 @@ public:
 
 	/// Converting constructor.
 	//!
-	//! This constructor takes a numeric value of type long double and converts 
+	//! This constructor takes a numeric value of type long double and converts
 	//! it to this fixed_point type.
 	fixed_point(
 		/// The value to convert.
@@ -524,7 +531,7 @@ public:
 		/// The right hand side.
 		fixed_point<B, I2, F2, TBaseTypeTrait> const& rhs)
 		: value_(rhs.value_)
-	{ 
+	{
 		if (I-I2 > 0)
 			value_ >>= I-I2;
 		if (I2-I > 0)
@@ -571,8 +578,8 @@ public:
 		/// Right hand side.
 		fp_type const& rhs) const
 	{
-		return 
-			value_ < rhs.value_; 
+		return
+			value_ < rhs.value_;
 	}
 
 	/// Equality operator.
@@ -582,8 +589,8 @@ public:
 		/// Right hand side.
 		fp_type const& rhs) const
 	{
-		return 
-			value_ == rhs.value_; 
+		return
+			value_ == rhs.value_;
 	}
     /// Other comparison operators.
     #undef FPML_COMP_OP
@@ -601,15 +608,15 @@ public:
 	//! /return true if equal to zero, false otherwise.
 	bool operator !() const
 	{
-		return value_ == 0; 
+		return value_ == 0;
 	}
 
 	/// Unary minus operator.
 	//!
-	//! For signed fixed-point types you can apply the unary minus operator to 
-	//! get the additive inverse. For unsigned fixed-point types, this operation 
-	//! is undefined. Also, shared with the integer base type B, the minimum 
-	//! value representable by the type cannot be inverted, since it would yield 
+	//! For signed fixed-point types you can apply the unary minus operator to
+	//! get the additive inverse. For unsigned fixed-point types, this operation
+	//! is undefined. Also, shared with the integer base type B, the minimum
+	//! value representable by the type cannot be inverted, since it would yield
 	//! a positive value that is out of range and cannot be represented.
 	//!
 	//! /return The negative value.
@@ -779,7 +786,7 @@ public:
 	//! /return The value converted to char.
 	operator char() const
 	{
-		return static_cast<char>(value_ >> F);	
+		return static_cast<char>(value_ >> F);
 	}
 
 	/// Convert to signed char.
@@ -787,7 +794,7 @@ public:
 	//! /return The value converted to signed char.
 	operator signed char() const
 	{
-		return static_cast<signed char>(value_ >> F);	
+		return static_cast<signed char>(value_ >> F);
 	}
 
 	/// Convert to unsigned char.
@@ -795,7 +802,7 @@ public:
 	//! /return The value converted to unsigned char.
 	operator unsigned char() const
 	{
-		return static_cast<unsigned char>(value_ >> F);	
+		return static_cast<unsigned char>(value_ >> F);
 	}
 
 	/// Convert to short.
@@ -803,7 +810,7 @@ public:
 	//! /return The value converted to short.
 	operator short() const
 	{
-		return static_cast<short>(value_ >> F);	
+		return static_cast<short>(value_ >> F);
 	}
 
 	/// Convert to unsigned short.
@@ -811,7 +818,7 @@ public:
 	//! /return The value converted to unsigned short.
 	operator unsigned short() const
 	{
-		return static_cast<unsigned short>(value_ >> F);	
+		return static_cast<unsigned short>(value_ >> F);
 	}
 
 	/// Convert to int.
@@ -819,7 +826,7 @@ public:
 	//! /return The value converted to int.
 	operator int() const
 	{
-		return static_cast<int>(value_ >> F);	
+		return static_cast<int>(value_ >> F);
 	}
 
 	/// Convert to unsigned int.
@@ -827,7 +834,7 @@ public:
 	//! /return The value converted to unsigned int.
 	operator unsigned int() const
 	{
-		return static_cast<unsigned int>(value_ >> F);	
+		return static_cast<unsigned int>(value_ >> F);
 	}
 
 	/// Convert to long.
@@ -835,7 +842,7 @@ public:
 	//! /return The value converted to long.
 	operator long() const
 	{
-		return static_cast<long>(value_ >> F);	
+		return static_cast<long>(value_ >> F);
 	}
 
 	/// Convert to unsigned long.
@@ -843,7 +850,7 @@ public:
 	//! /return The value converted to unsigned long.
 	operator unsigned long() const
 	{
-		return static_cast<unsigned long>(value_ >> F);	
+		return static_cast<unsigned long>(value_ >> F);
 	}
 
 	/// Convert to long long.
@@ -851,7 +858,7 @@ public:
 	//! /return The value converted to long long.
 	operator long long() const
 	{
-		return static_cast<long long>(value_ >> F);	
+		return static_cast<long long>(value_ >> F);
 	}
 
 	/// Convert to unsigned long long.
@@ -859,7 +866,7 @@ public:
 	//! /return The value converted to unsigned long long.
 	operator unsigned long long() const
 	{
-		return static_cast<unsigned long long>(value_ >> F);	
+		return static_cast<unsigned long long>(value_ >> F);
 	}
 
 	/// Convert to a bool.
@@ -867,7 +874,7 @@ public:
 	//! /return The value converted to a bool.
 	operator bool() const
 	{
-		return static_cast<bool>(value_);	
+		return static_cast<bool>(value_);
 	}
 
 	/// Convert to a float.
@@ -876,7 +883,7 @@ public:
 	operator float() const
 	{
         // TODO: Needs improvement: composite integer cannot be assigned to float.
-		return (float)value_ / power2<F>::value;	
+		return (float)value_ / power2<F>::value;
 	}
 
 	/// Convert to a double.
@@ -885,7 +892,7 @@ public:
 	operator double() const
 	{
         // TODO: Needs improvement: composite integer cannot be assigned to double.
-		return (double)value_ / power2<F>::value;	
+		return (double)value_ / power2<F>::value;
 	}
 
 	/// Convert to a long double.
@@ -894,7 +901,7 @@ public:
 	operator long double() const
 	{
         // TODO: Needs improvement: composite integer cannot be assigned to long double.
-		return (long double)value_ / power2<F>::value;	
+		return (long double)value_ / power2<F>::value;
 	}
 
     /// Convert to a base type.
@@ -1076,7 +1083,7 @@ std::wstring fptows(
 /**************************************************************************/
 
 /// Calculates the absolute value.
-//! 
+//!
 //! The fabs function computes the absolute value of its argument.
 //!
 //! /return The absolute value of the argument.
@@ -1098,8 +1105,8 @@ fixed_point<B, I, F, TBaseTypeTrait> fabs(
 /**************************************************************************/
 
 /// Calculates the ceiling value.
-//! 
-//! The ceil function computes the smallest integral value not less than 
+//!
+//! The ceil function computes the smallest integral value not less than
 //! its argument.
 //!
 //! /return The smallest integral value not less than the argument.
@@ -1123,8 +1130,8 @@ fixed_point<B, I, F, TBaseTypeTrait> ceil(
 /**************************************************************************/
 
 /// Calculates the floor.
-//! 
-//! The floor function computes the largest integral value not greater than 
+//!
+//! The floor function computes the largest integral value not greater than
 //! its argument.
 //!
 //! /return The largest integral value not greater than the argument.
@@ -1148,7 +1155,7 @@ fixed_point<B, I, F, TBaseTypeTrait> floor(
 /**************************************************************************/
 
 /// Calculates the remainder.
-//! 
+//!
 //! The fmod function computes the fixed point remainder of x/y.
 //!
 //! /return The fixed point remainder of x/y.
@@ -1174,7 +1181,7 @@ fixed_point<B, I, F, TBaseTypeTrait> fmod(
 /**************************************************************************/
 
 /// Split in integer and fraction parts.
-//! 
+//!
 //! The modf function breaks the argument into integer and fraction parts,
 //! each of which has the same sign as the argument. It stores the integer
 //! part in the object pointed to by ptr.
@@ -1207,7 +1214,7 @@ fixed_point<B, I, F, TBaseTypeTrait> modf(
 /**************************************************************************/
 
 /// Calculates the exponential.
-//! 
+//!
 //! The function computes the exponential function of x. The algorithm uses
 //! the identity e^(a+b) = e^a * e^b.
 //!
@@ -1222,30 +1229,30 @@ fixed_point<B, I, F, TBaseTypeTrait> exp(
     // TODO: Expand this table.
     // a[x] = exp( (1/2) ^ x ), x: [0 ... 31]
     fp_type a[] = {
-        1.64872127070012814684865078781, 
-        1.28402541668774148407342056806, 
-        1.13314845306682631682900722781, 
-        1.06449445891785942956339059464, 
-        1.03174340749910267093874781528, 
-        1.01574770858668574745853507208, 
-        1.00784309720644797769345355976, 
-        1.00391388933834757344360960390, 
-        1.00195503359100281204651889805, 
-        1.00097703949241653524284529261, 
-        1.00048840047869447312617362381, 
-        1.00024417042974785493700523392, 
-        1.00012207776338377107650351967, 
-        1.00006103701893304542177912060, 
-        1.00003051804379102429545128481, 
-        1.00001525890547841394814004262, 
-        1.00000762942363515447174318433, 
-        1.00000381470454159186605078771, 
-        1.00000190735045180306002872525, 
-        1.00000095367477115374544678825, 
-        1.00000047683727188998079165439, 
-        1.00000023841860752327418915867, 
-        1.00000011920929665620888994533, 
-        1.00000005960464655174749969329, 
+        1.64872127070012814684865078781,
+        1.28402541668774148407342056806,
+        1.13314845306682631682900722781,
+        1.06449445891785942956339059464,
+        1.03174340749910267093874781528,
+        1.01574770858668574745853507208,
+        1.00784309720644797769345355976,
+        1.00391388933834757344360960390,
+        1.00195503359100281204651889805,
+        1.00097703949241653524284529261,
+        1.00048840047869447312617362381,
+        1.00024417042974785493700523392,
+        1.00012207776338377107650351967,
+        1.00006103701893304542177912060,
+        1.00003051804379102429545128481,
+        1.00001525890547841394814004262,
+        1.00000762942363515447174318433,
+        1.00000381470454159186605078771,
+        1.00000190735045180306002872525,
+        1.00000095367477115374544678825,
+        1.00000047683727188998079165439,
+        1.00000023841860752327418915867,
+        1.00000011920929665620888994533,
+        1.00000005960464655174749969329,
         1.00000002980232283178452676169,
         1.00000001490116130486995926397,
         1.00000000745058062467940380956,
@@ -1286,18 +1293,18 @@ fixed_point<B, I, F, TBaseTypeTrait> exp(
 /**************************************************************************/
 
 /// Calculates the square root.
-//! 
+//!
 //! The sqrt function computes the nonnegative square root of its argument.
 //! A domain error results if the argument is negative.
 //!
-//! Calculates an approximation of the square root using an integer 
-//! algorithm. The algorithm is described in Wikipedia: 
+//! Calculates an approximation of the square root using an integer
+//! algorithm. The algorithm is described in Wikipedia:
 //! http://en.wikipedia.org/wiki/Methods_of_computing_square_roots
 //!
-//! The algorithm seems to have originated in a book on programming abaci by 
+//! The algorithm seems to have originated in a book on programming abaci by
 //! Mr C. Woo.
 //!
-//! /return The square root of the argument. If the argument is negative, 
+//! /return The square root of the argument. If the argument is negative,
 //! the function returns 0.
 template<typename B, unsigned char I, unsigned char F, typename TBaseTypeTrait>
 fixed_point<B, I, F, TBaseTypeTrait> sqrt(
@@ -1317,7 +1324,7 @@ fixed_point<B, I, F, TBaseTypeTrait> sqrt(
 
     auto op = static_cast<promotion_type>(x.value_) << (I - 1);
     promotion_type res = 0;
-    promotion_type one = (promotion_type)1 << (promotion_limits::digits - 1); 
+    promotion_type one = (promotion_type)1 << (promotion_limits::digits - 1);
 
     while (one > op)
         one >>= 2;
@@ -1346,14 +1353,14 @@ fixed_point<B, I, F, TBaseTypeTrait> sqrt(
 /**************************************************************************/
 
 /// Calculates the sine.
-//! 
+//!
 //! The algorithm uses a MacLaurin series expansion.
 //!
 //! First the argument is reduced to be within the range -Pi .. +Pi. Then
-//! the MacLaurin series is expanded. The argument reduction is problematic 
+//! the MacLaurin series is expanded. The argument reduction is problematic
 //! since Pi cannot be represented exactly. The more rounds are reduced the
 //! less significant is the argument (every reduction round makes a slight
-//! error), to the extent that the reduced argument and consequently the 
+//! error), to the extent that the reduced argument and consequently the
 //! result are meaningless.
 //!
 //! The argument reduction uses one division. The series expansion uses 3
@@ -1392,14 +1399,14 @@ fixed_point<B, I, F, TBaseTypeTrait> sin(
 /**************************************************************************/
 
 /// Calculates the cosine.
-//! 
+//!
 //! The algorithm uses a MacLaurin series expansion.
 //!
 //! First the argument is reduced to be within the range -Pi .. +Pi. Then
-//! the MacLaurin series is expanded. The argument reduction is problematic 
+//! the MacLaurin series is expanded. The argument reduction is problematic
 //! since Pi cannot be represented exactly. The more rounds are reduced the
 //! less significant is the argument (every reduction round makes a slight
-//! error), to the extent that the reduced argument and consequently the 
+//! error), to the extent that the reduced argument and consequently the
 //! result are meaningless.
 //!
 //! The argument reduction uses one division. The series expansion uses 3
@@ -1445,7 +1452,7 @@ template<
 //! /return A reference to this input stream.
 S & operator>>(
 	/// The input stream.
-	S & s, 
+	S & s,
 	/// A reference to the value to be read.
 	fpml::fixed_point<B, I, F, TBaseTypeTrait> & v)
 {
@@ -1476,7 +1483,7 @@ template<
 //! /return A reference to this output stream.
 S & operator<<(
 	/// The output stream.
-	S & s, 
+	S & s,
 	/// A const reference to the value to be written.
 	fpml::fixed_point<B, I, F, TBaseTypeTrait> const& v)
 {
@@ -1512,14 +1519,14 @@ public:
 
 	/// Tests whether a type allows denormalized values.
 	//!
-	//! An enumeration value of type const float_denorm_style, indicating 
+	//! An enumeration value of type const float_denorm_style, indicating
 	//! whether the type allows denormalized values. The fixed_point class does
 	//! not have denormalized values.
 	//!
 	//! The member is always set to denorm_absent.
 	static const float_denorm_style has_denorm = denorm_absent;
 
-	/// Tests whether loss of accuracy is detected as a denormalization loss 
+	/// Tests whether loss of accuracy is detected as a denormalization loss
 	/// rather than as an inexact result.
 	//!
 	//! The fixed_point class does not have denormalized values.
@@ -1535,7 +1542,7 @@ public:
 	//! The member is always set to false.
 	static const bool has_infinity = false;
 
-	/// Tests whether a type has a representation for a quiet not a number 
+	/// Tests whether a type has a representation for a quiet not a number
 	/// (NAN), which is nonsignaling.
 	//!
 	//! The fixed_point class does not have a quiet NAN.
@@ -1543,7 +1550,7 @@ public:
 	//! The member is always set to false.
 	static const bool has_quiet_NaN = false;
 
-	/// Tests whether a type has a representation for signaling not a number 
+	/// Tests whether a type has a representation for signaling not a number
 	//! (NAN).
 	//!
 	//! The fixed_point class does not have a signaling NAN.
@@ -1582,7 +1589,7 @@ public:
 
 	/// Tests if a type has a modulo representation.
 	//!
-	//! A modulo representation is a representation where all results are 
+	//! A modulo representation is a representation where all results are
 	//! reduced modulo some value. The fixed_point class does not have a
 	//! modulo representation.
 	//!
@@ -1591,12 +1598,12 @@ public:
 
 	/// Tests if a type has a signed representation.
 	//!
-	//! The member stores true for a type that has a signed representation, 
+	//! The member stores true for a type that has a signed representation,
 	//! which is the case for all fixed_point types with a signed base type.
 	//! Otherwise it stores false.
 	static const bool is_signed = fp_type::base_type_trait::limits::is_signed;
 
-	/// Tests if a type has an explicit specialization defined in the template 
+	/// Tests if a type has an explicit specialization defined in the template
 	/// class numeric_limits.
 	//!
 	//! The fixed_point class has an explicit specialization.
@@ -1604,42 +1611,42 @@ public:
 	//! The member is always set to true.
 	static const bool is_specialized = true;
 
-	/// Tests whether a type can determine that a value is too small to 
+	/// Tests whether a type can determine that a value is too small to
 	/// represent as a normalized value before rounding it.
 	//!
-	//! Types that can detect tinyness were included as an option with IEC 559 
-	//! floating-point representations and its implementation can affect some 
+	//! Types that can detect tinyness were included as an option with IEC 559
+	//! floating-point representations and its implementation can affect some
 	//! results.
 	//!
 	//! The member is always set to false.
 	static const bool tinyness_before = false;
 
-	/// Tests whether trapping that reports on arithmetic exceptions is 
+	/// Tests whether trapping that reports on arithmetic exceptions is
 	//! implemented for a type.
 	//!
 	//! The member is always set to false.
 	static const bool traps = false;
 
-	/// Returns a value that describes the various methods that an 
-	/// implementation can choose for rounding a real value to an integer 
+	/// Returns a value that describes the various methods that an
+	/// implementation can choose for rounding a real value to an integer
 	/// value.
 	//!
 	//! The member is always set to round_toward_zero.
 	static const float_round_style round_style = round_toward_zero;
 
-	/// Returns the number of radix digits that the type can represent without 
+	/// Returns the number of radix digits that the type can represent without
 	/// loss of precision.
 	//!
-	//! The member stores the number of radix digits that the type can represent 
+	//! The member stores the number of radix digits that the type can represent
 	//! without change.
 	//!
 	//! The member is set to the template parameter I (number of integer bits).
 	static const int digits = I;
 
-	/// Returns the number of decimal digits that the type can represent without 
+	/// Returns the number of decimal digits that the type can represent without
 	/// loss of precision.
 	//!
-	//! The member is set to the number of decimal digits that the type can 
+	//! The member is set to the number of decimal digits that the type can
 	//! represent.
 	static const int digits10 = (int)(digits * 301. / 1000. + .5);
 
@@ -1669,7 +1676,7 @@ public:
 		return maximum;
 	}
 
-	/// The function returns the difference between 1 and the smallest value 
+	/// The function returns the difference between 1 and the smallest value
 	/// greater than 1 that is representable for the data type.
 	//!
 	//! /return The smallest effective increment from 1.0.

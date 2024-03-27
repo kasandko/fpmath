@@ -34,21 +34,13 @@
 cmake_minimum_required (VERSION 3.5.1)
 project (benchmark)
 
-set ( Boost_USE_STATIC_LIBS ON )
-find_package( 
-	Boost REQUIRED 
-	COMPONENTS 
-		unit_test_framework )
-		
-if ( Boost_FOUND )
-   
-   include_directories( ${Boost_INCLUDE_DIRS} )
-   link_directories( ${Boost_INCLUDE_DIRS}/stage/lib )
-      
-else ( Boost_FOUND )
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-   message( fatal_error "Boost not found. Cannot continue." )
-	    
-endif( Boost_FOUND )
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(benchmark benchmark.cpp )
+set (SOURCES
+    benchmark.cpp
+    )
+
+add_executable(benchmark ${SOURCES} )

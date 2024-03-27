@@ -7,7 +7,7 @@
 #include "base_tests.h"
 #include "operators_tests.h"
 #include "math_functions_tests.h"
-#include "casts_texts.h"
+#include "casts_tests.h"
 #include "other_tests.h"
 
 using TestFunc = std::function<bool()>;
