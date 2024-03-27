@@ -24,7 +24,7 @@
     * [ ] C++11 support.
     * [ ] ~Support literals.~
 * **Tests**
-    * [ ] Remove boost from tests. Add simple test system.
+    * [x] Remove boost from tests. Add simple test system.
     * [ ] Add tests for functions.
     * [ ] Add tests for casts.
     * [ ] Add tests for i/o stream.
